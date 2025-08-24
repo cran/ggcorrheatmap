@@ -17,12 +17,14 @@
 #' @param names_y_side Y axis side.
 #' @param col_scale Scale for colour/fill aesthetic.
 #' @param size_scale Scale for size aesthetic.
-#' @param cell_labels Logical indicating if cell labels should be written or a matrix or data frame (same shape as x_long) with values to write.
+#' @param cell_labels Data frame of text to write on cells (processed by check_cell_labels).
 #' @param cell_label_col Colour of cell labels.
 #' @param cell_label_size Size of cell labels.
 #' @param cell_label_digits Number of digits for cell labels if numeric.
 #' @param cell_bg_col Cell background colour (fill).
 #' @param cell_bg_alpha Cell background alpha.
+#' @param split_rows_names,split_cols_names Logicals indicating if the facet names should be shown (if plot is built from scratch).
+#' @param split_rows_side,split_cols_side Sides to put the facet strips.
 #'
 #' @returns ggplot object with heatmap component.
 #'
@@ -34,8 +36,10 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
                          col_scale = NULL, size_scale = NULL,
                          cell_labels = FALSE, cell_label_col = "black",
                          cell_label_size = 3, cell_label_digits = 2,
-                         cell_bg_col = "white", cell_bg_alpha = 0) {
-  value <- .data <- label <- NULL
+                         cell_bg_col = "white", cell_bg_alpha = 0,
+                         split_rows_names = FALSE, split_cols_names = FALSE,
+                         split_rows_side = "right", split_cols_side = "bottom") {
+  value <- .data <- label <- .row_facets <- .col_facets <- NULL
 
   # show_names_diag checked earlier
   check_logical(show_names_x = show_names_x)
@@ -45,7 +49,7 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
   # Base plot
   plt_provided <- !is.null(plt)
   if (is.null(plt)) {
-    plt <- ggplot2::ggplot(mapping = ggplot2::aes(x = col, y = row))
+    plt <- ggplot2::ggplot()
   }
 
   shape_mode_fill <- mode %in% as.character(21:25)
@@ -57,6 +61,7 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
     plt <- plt +
       # Subset after converting to character as error occurs during rendering if factor levels are different
       ggplot2::geom_tile(data = subset(x_long, as.character(row) == as.character(col)),
+                         mapping = ggplot2::aes(x = col, y = row),
                          fill = "white", linewidth = 0, alpha = 0)
   }
 
@@ -72,28 +77,29 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
     # Add empty cells as a grid for text and none modes
     list(
       if (mode %in% c("text", "none")) {
-        ggplot2::geom_tile(data = x_long, linewidth = border_lwd, colour = border_col,
+        ggplot2::geom_tile(data = x_long, mapping = ggplot2::aes(x = col, y = row),
+                           linewidth = border_lwd, colour = border_col,
                            fill = cell_bg_col, linetype = border_lty, alpha = cell_bg_alpha)
       }
     ) +
     # Plot tiles or points depending on cell shape
     list(
       if (mode %in% c("heatmap", "hm")) {
-        ggplot2::geom_tile(ggplot2::aes(fill = value),
+        ggplot2::geom_tile(ggplot2::aes(x = col, y = row, fill = value),
                            data = x_long,
                            linewidth = border_lwd, colour = border_col, linetype = border_lty)
       } else if (shape_mode_fill) {
-        ggplot2::geom_point(ggplot2::aes(fill = value, size = value),
+        ggplot2::geom_point(ggplot2::aes(x = col, y = row, fill = value, size = value),
                             data = x_long,
                             stroke = border_lwd, colour = border_col, shape = as.numeric(mode))
       } else if (shape_mode_col) {
-        ggplot2::geom_point(ggplot2::aes(colour = value, size = value),
+        ggplot2::geom_point(ggplot2::aes(x = col, y = row, colour = value, size = value),
                             data = x_long,
                             stroke = border_lwd, shape = as.numeric(mode))
       } else if (mode == "text" & isFALSE(cell_labels)) {
         ggplot2::geom_text(
           # Round values if value are numeric and cell_label_digits is numeric
-          ggplot2::aes(label = if (is.numeric(.data[["value"]]) & is.numeric(cell_label_digits)) {
+          ggplot2::aes(x = col, y = row, label = if (is.numeric(.data[["value"]]) & is.numeric(cell_label_digits)) {
             round(value, cell_label_digits)
           } else {value}, colour = value),
           # For text, skip diagonals if names are written there
@@ -114,8 +120,6 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
       # Remove extra space on axes (if drawing tiles) and place on specified sides
       ggplot2::scale_x_discrete(position = names_x_side) +
       ggplot2::scale_y_discrete(position = names_y_side) +
-      # Make cells square
-      ggplot2::coord_fixed(clip = "off") +
       ggplot2::theme_classic() +
       # Remove axis elements
       ggplot2::theme(axis.line = ggplot2::element_blank(),
@@ -133,42 +137,16 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
   }
 
   # Cell labels
-  if (isTRUE(cell_labels) | is.matrix(cell_labels) | is.data.frame(cell_labels)) {
+  if (is.data.frame(cell_labels)) {
+    # Remove cells in cell_labels that don't exist in plot
+    # If input is a matrix, convert to long format
 
-    cell_data <- if (is.matrix(cell_labels) | is.data.frame(cell_labels)) {
-      # Perform the same checks as for plotting data
-      # Check that there are colnames
-      if (is.null(colnames(cell_labels))) {colnames(cell_labels) <- 1:ncol(cell_labels)}
-
-      if (".names" %in% colnames(cell_labels)) {
-        rownames(cell_labels) <- cell_labels[[".names"]]
-        cell_labels <- dplyr::select(cell_labels, -".names")
-      }
-      # Explicitly define the rownames to prevent ggplot2 error if x is a data frame without explicit rownames
-      rownames(cell_labels) <- rownames(cell_labels)
-
-      # Check that there are rownames
-      if (is.null(rownames(cell_labels))) {rownames(cell_labels) <- 1:nrow(cell_labels)}
-
-      cell_labels <- as.matrix(cell_labels)
-
-      # If input is a matrix, convert to long format
-      cell_data_temp <- dplyr::rename(layout_hm(as.matrix(cell_labels)), "label" = "value")
-
-      # Merge with input long matrix to throw away irrelevant rows
-      dplyr::left_join(x_long, cell_data_temp, by = c("row", "col"))
-    } else {
-      # If just a TRUE, use values as cell labels
-      dplyr::mutate(x_long, label = value)
-    }
+    # Merge with input long matrix to throw away irrelevant rows
+    cell_data <- dplyr::left_join(x_long, cell_labels, by = c("row", "col"))
 
     # Skip NA labels
-    cell_data <- subset(cell_data, !is.na(label))
-
-    if (nrow(cell_data) < 1) {
-      cli::cli_warn("There are no cells in {.var cell_labels} that correspond to cells in the plotted data.",
-                    class = "cell_labels_rowcol_warn")
-    }
+    cell_data <- dplyr::select(subset(cell_data, !is.na(label)), "row", "col", "value", "label",
+                               dplyr::contains("_facets"))
 
     # skip diagonal if already occupied
     if (!(include_diag & !show_names_diag)) {cell_data <- subset(cell_data, as.character(row) != as.character(col))}
@@ -192,10 +170,67 @@ make_heatmap <- function(x_long, plt = NULL, mode = "heatmap",
         }
       )
 
-  } else if (!isFALSE(cell_labels)) {
-    cli::cli_warn("{.var cell_labels} should be a {.cls logical} to write the cell values, or
-                  a {.cls matrix} or {.cls data.frame} that shares row/colnames with the plotted matrix.",
-                  class = "cell_labels_class_warn")
+  }
+
+  if (any(c(".row_facets", ".col_facets") %in% colnames(x_long))) {
+    facet_r <- if (".row_facets" %in% colnames(x_long)) {
+      # Explicitly set factor levels when making the facets to prevent unintentional changes in facet order
+      ggplot2::vars(factor(.row_facets, levels = levels(x_long[[".row_facets"]])))
+    } else {NULL}
+    facet_c <- if (".col_facets" %in% colnames(x_long)) {
+      ggplot2::vars(factor(.col_facets, levels = levels(x_long[[".col_facets"]])))
+    } else {NULL}
+
+    # Make input for the 'switch' argument for strip placement
+    # Check that the inputs are valid
+    if (!split_rows_side %in% c("left", "right") && !is.null(facet_r)) {
+      cli::cli_warn("{.var split_rows_side} should be {.val left} or {.val right}, not
+                     {.val {split_rows_side}}. Using default (right).",
+                     class = "facet_side_warn")
+      split_rows_side <- "right"
+    }
+    if (!split_cols_side %in% c("top", "bottom") && !is.null(facet_c)) {
+      cli::cli_warn("{.var split_cols_side} should be {.val top} or {.val bottom}, not
+                     {.val {split_cols_side}}. Using default (bottom).",
+                     class = "facet_side_warn")
+      split_cols_side <- "bottom"
+    }
+
+    # Default is top and right, switch different axes depending on input
+    sw_in <- switch(paste0(split_rows_side, split_cols_side),
+                    "righttop" = NULL,
+                    "rightbottom" = "x",
+                    "lefttop" = "y",
+                    "leftbottom" = "both")
+
+    plt <- plt +
+      ggplot2::facet_grid(rows = facet_r, cols = facet_c,
+                          space = "free", scales = "free",
+                          switch = sw_in) +
+      ggplot2::theme(strip.background = ggplot2::element_blank())
+  }
+
+  if (!plt_provided && !any(c(".row_facets", ".col_facets") %in% colnames(x_long))) {
+    plt <- plt +
+      # Make cells square
+      ggplot2::coord_fixed(clip = "off")
+  } else if (!plt_provided) {
+    # coord_fixed does not work with facets and free scales
+    plt <- plt +
+      # Keep normal coordinates but turn of clipping
+      ggplot2::coord_cartesian(clip = "off")
+  }
+
+  # Hide facet label strips if facet input argument is shorter than number of rows/cols
+  if (!plt_provided && isFALSE(split_rows_names)) {
+    plt <- plt + ggplot2::theme(strip.background.y = ggplot2::element_blank(),
+                                strip.text.y.left = ggplot2::element_blank(),
+                                strip.text.y.right = ggplot2::element_blank())
+  }
+  if (!plt_provided && isFALSE(split_cols_names)) {
+    plt <- plt + ggplot2::theme(strip.background.x = ggplot2::element_blank(),
+                                strip.text.x.bottom = ggplot2::element_blank(),
+                                strip.text.x.top = ggplot2::element_blank())
   }
 
   return(plt)
@@ -219,6 +254,18 @@ add_diag_names <- function(plt, x_long, names_diag_params = NULL) {
   # Order labels so they are from left to right
   axis_lab <- data.frame(label = factor(levels(x_long$col), levels = levels(x_long$col)))
   axis_lab <- dplyr::arrange(axis_lab, label)
+
+  # Add facetting columns
+  if (".row_facets" %in% colnames(x_long)) {
+    axis_lab <- dplyr::left_join(axis_lab,
+                                 dplyr::distinct(dplyr::select(x_long, "row", ".row_facets")),
+                                 by = c("label" = "row"))
+  }
+  if (".col_facets" %in% colnames(x_long)) {
+    axis_lab <- dplyr::left_join(axis_lab,
+                                 dplyr::distinct(dplyr::select(x_long, "col", ".col_facets")),
+                                 by = c("label" = "col"))
+  }
 
   # Construct call using optional parameters
   text_call_params <- list(data = axis_lab, mapping = ggplot2::aes(x = label, y = label, label = label))

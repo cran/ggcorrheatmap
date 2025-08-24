@@ -19,7 +19,7 @@
 #' In mixed layouts, can also be a list of length two containing the two scales to use.
 #' @param col_name String to use for the correlation scale. If NULL (default) the text will depend on the correlation method. Can be two values in mixed layouts for dual scales.
 #' @param p_values Logical indicating if p-values should be calculated. Use with `p_thresholds` to mark cells, and/or `return_data` to get the p-values in the output data.
-#' @param p_adjust String specifying the adjustment method to use for the p-values (default is "none").
+#' @param p_adjust String specifying the multiple testing adjustment method to use for the p-values (default is "none"). Passed to `stats::p.adjust()`.
 #' @param p_thresholds Named numeric vector specifying p-value thresholds (in ascending order) to mark. The last element must be 1 or higher (to set the upper limit).
 #' Names must be unique, but one element can be left unnamed (by default 1 is unnamed, meaning values between the threshold closest to 1 and 1 are not marked in the plot).
 #' If NULL, no thresholding is done and p-value intervals are not marked with symbols.
@@ -42,12 +42,10 @@
 #' @param cell_label_p Logical indicating if, when `cell_labels` is `TRUE`, p-values should be written instead of correlation values.
 #' @param cell_label_col Colour to use for cell labels, passed to `ggplot2::geom_text()`.
 #' @param cell_label_size Size of cell labels, used as the `size` argument in `ggplot2::geom_text()`.
-#' @param annot_rows_params Named list with parameters for row annotations to overwrite the defaults set by the `annot_*` arguments, each name corresponding to the `*` part
+#' @param annot_rows_params,annot_cols_params Named list with parameters for row or column annotations to overwrite the defaults set by the `annot_*` arguments, each name corresponding to the `*` part
 #' (see details of `gghm()` for more information).
-#' @param dend_rows_params Named list for row dendrogram parameters. See details of `gghm()` for more information.
-#' @param dend_cols_params Named list for column dendrogram parameters. See details of `gghm()` for more information.
-#' @param dend_rows_extend Named list or functional sequence for specifying `dendextend` functions to apply to the row dendrogram. See details of `gghm()` and `ggcorrhm()` for usage.
-#' @param dend_cols_extend Named list or functional sequence for specifying `dendextend` functions to apply to the column dendrogram. See details of `gghm()` and `ggcorrhm()` for usage.
+#' @param dend_rows_params,dend_cols_params Named list for row or column dendrogram parameters. See details of `gghm()` for more information.
+#' @param dend_rows_extend,dend_cols_extend Named list or functional sequence for specifying `dendextend` functions to apply to the row or column dendrogram. See details of `gghm()` and `ggcorrhm()` for usage.
 #'
 #' @return The correlation heatmap as a `ggplot` object.
 #' If `return_data` is TRUE the output is a list containing the plot (named 'plot'),
@@ -68,13 +66,16 @@
 #'
 #' Row and column names are displayed in the diagonal by default if the correlation matrix is symmetric (only `x` is provided or `x` and `y` are identical).
 #'
-#' The colour scale is set to be a diverging gradient around 0, with options to change the low, mid, and high colours, the midpoint, and the limits.
-#' The `bins` argument converts the scale to a discrete scale divided into `bins` equally distributed bins.
+#' The colour scale is set to be a diverging gradient around 0, with options to change the `low`, `mid`, and `high` colours, the `midpoint`, and the `limits` (using the arguments
+#' of the same names). The `bins` argument converts the scale to a discrete scale divided into `bins` equally distributed bins (if an integer the breaks may be at strange numbers,
+#' if a double the number of bins may be different but the breaks are at nicer numbers). These arguments can be of length two (`limits` a list of length two) two apply
+#' to each triangle in a mixed layout (detailed more in the details section of `gghm()`). The `size_range` argument (for size scales) can also be a list of length two like `limits`.
 #'
 #' The size scale, used when a numeric cell shape is specified, is set to vary the shape size between 4 and 10 (can be changed with the `size_range` argument)
 #' and to transform the values to absolute values (so that both positive and negative correlations are treated equally).
 #' This behaviour can be overwritten by setting `size_scale` to another `ggplot2::scale_size_*` function with the desired
-#' arguments, or `ggplot2::scale_size()` for no special behaviour.
+#' arguments, or `ggplot2::scale_size()` for no special behaviour. `ggplot2::scale_size_area()` also scales with the absolute value,
+#' but only the upper size limit can be set.
 #' When the absolute value transformation is used the legend for sizes loses its meaning (only displaying positive values)
 #' and is therefore set to not be shown if `legend_order` is NULL.
 #'
@@ -133,15 +134,17 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                      annot_border_lty = if (length(border_lty) == 1) border_lty else 1,
                      annot_na_col = na_col, annot_na_remove = na_remove,
                      annot_rows_params = NULL, annot_cols_params = NULL,
-                     show_annot_names = TRUE, annot_names_size = 9,
+                     show_annot_names = TRUE, annot_names_size = 3,
                      annot_rows_names_side = "bottom", annot_cols_names_side = "left",
+                     annot_rows_names_params = NULL, annot_cols_names_params = NULL,
                      annot_rows_name_params = NULL, annot_cols_name_params = NULL,
                      cluster_rows = FALSE, cluster_cols = FALSE,
                      cluster_distance = "euclidean", cluster_method = "complete",
                      show_dend_rows = TRUE, show_dend_cols = TRUE, dend_rows_side = "right", dend_cols_side = "bottom",
                      dend_col = "black", dend_dist = 0, dend_height = 0.3, dend_lwd = 0.3, dend_lty = 1,
                      dend_rows_params = NULL, dend_cols_params = NULL,
-                     dend_rows_extend = NULL, dend_cols_extend = NULL) {
+                     dend_rows_extend = NULL, dend_cols_extend = NULL,
+                     split_rows = NULL, split_cols = NULL) {
 
   # Perform some input argument checks
   check_logical(return_data = return_data)
@@ -160,7 +163,7 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
       cli::cli_abort("{.var p_thresholds} must be a named {.cls numeric} vector or NULL.",
                      class = "p_thr_class_error")
     } else if (!is.null(p_thresholds)) {
-      if (any(is.na(p_thresholds))) cli::cli_abort("{.var p_thresholds} should not contain any missing values.")
+      if (any(is.na(p_thresholds))) cli::cli_abort("{.var p_thresholds} should not contain any missing values.", class = "p_thr_error")
       if (any(p_thresholds <= 0)) cli::cli_abort("Values in {.var p_thresholds} must be above 0.", class = "p_thr_error")
       if (p_thresholds[length(p_thresholds)] < 1) cli::cli_abort("The last value of {.var p_thresholds} must be 1 or larger.", class = "p_thr_error")
       if (is.null(names(p_thresholds))) cli::cli_abort("{.var p_thresholds} must have named elements to be used as symbols (up to one unnamed).", class = "p_thr_error")
@@ -247,10 +250,22 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
   scale_order <- make_legend_order(mode = mode,
                                    col_scale = col_scale,
                                    size_scale = size_scale, annot_rows_df = annot_rows_df,
-                                   annot_cols_df = annot_cols_df, legend_order = legend_order)
+                                   annot_cols_df = annot_cols_df,
+                                   bins = bins, limits = limits,
+                                   high = high, mid = mid, low = low, na_col = na_col,
+                                   midpoint = midpoint, size_range = size_range,
+                                   legend_order = legend_order)
 
   # Prepare scales for mixed layouts
   if (length(layout) == 2) {
+    bins <- prepare_mixed_param(bins, "bins")
+    limits <- prepare_mixed_param(limits, "limits")
+    midpoint <- prepare_mixed_param(midpoint, "midpoint")
+    size_range <- prepare_mixed_param(size_range, "size_range")
+    high <- prepare_mixed_param(high, "high")
+    mid <- prepare_mixed_param(mid, "mid")
+    low <- prepare_mixed_param(low, "low")
+    na_col <- prepare_mixed_param(na_col, "na_col")
     col_name <- prepare_mixed_param(col_name, "col_name")
     col_scale <- prepare_mixed_param(col_scale, "col_scale")
     size_name <- prepare_mixed_param(size_name, "size_name")
@@ -279,7 +294,9 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
   }
 
   # Generate the necessary scales
-  main_scales <- prepare_scales(scale_order = scale_order, context = "ggcorrhm", val_type = "continuous",
+  main_scales <- prepare_scales(scale_order = scale_order, context = "ggcorrhm",
+                                layout = layout,
+                                val_type = "continuous",
                                 col_scale = col_scale, col_name = col_name,
                                 size_scale = size_scale, size_name = size_name,
                                 bins = bins, limits = limits,
@@ -317,6 +334,7 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                   annot_rows_params = annot_rows_params, annot_cols_params = annot_cols_params,
                   annot_names_size = annot_names_size,
                   annot_rows_names_side = annot_rows_names_side, annot_cols_names_side = annot_cols_names_side,
+                  annot_rows_names_params = annot_rows_names_params, annot_cols_names_params = annot_cols_names_params,
                   annot_rows_name_params = annot_rows_name_params, annot_cols_name_params = annot_cols_name_params,
                   cluster_rows = cluster_rows, cluster_cols = cluster_cols,
                   cluster_distance = cluster_distance, cluster_method = cluster_method,
@@ -324,7 +342,8 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                   dend_rows_side = dend_rows_side, dend_cols_side = dend_cols_side,
                   dend_col = dend_col, dend_dist = dend_dist, dend_height = dend_height, dend_lwd = dend_lwd, dend_lty = dend_lty,
                   dend_rows_params = dend_rows_params, dend_cols_params = dend_cols_params,
-                  dend_rows_extend = dend_rows_extend, dend_cols_extend = dend_cols_extend)
+                  dend_rows_extend = dend_rows_extend, dend_cols_extend = dend_cols_extend,
+                  split_rows = split_rows, split_cols = split_cols)
 
   if (return_data & any(unlist(p_values))) {
     # Add p-values to output data

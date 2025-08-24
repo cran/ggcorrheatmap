@@ -13,7 +13,9 @@ prepare_annotation(
   annot_names_size,
   annot_name_params,
   annot_names_side,
-  data_size
+  data_size,
+  x_long,
+  annot_names_strategy = "geom"
 )
 }
 \arguments{
@@ -34,6 +36,10 @@ prepare_annotation(
 \item{annot_names_side}{Annotation label side.}
 
 \item{data_size}{Size of data (ncol if row annotations, nrow if column annotations).}
+
+\item{x_long}{Long format plotting data, to see if there are any facets to take into account.}
+
+\item{annot_names_strategy}{String stating how to draw names (geom, grid). To deal with deprecated argument.}
 }
 \value{
 List with updated annotation parameters, calculated annotation positions, and updated

@@ -9,6 +9,8 @@
 #' `mode` needs a vector of length two (applied in the same order as layout). See details for more information.
 #' @param mode A string specifying plotting mode. Possible values are `heatmap`/`hm` for a normal heatmap, a number from 1 to 25 to draw the corresponding shape,
 #' `text` to write the cell values instead of filling cells (colour scaling with value), and `none` for blank cells.
+#' @param scale_data Character string specifying scaling of the matrix. NULL or "none" for no scaling, "rows" for rows, and "columns" for
+#' columns. Can also be a substring of the beginning of the words.
 #' @param col_scale Colour scale to use for cells. If NULL, the default ggplot2 scale is used. If a string, the corresponding Brewer or Viridis scale is used.
 #' A string with a scale name with "rev_" in the beginning or "_rev" at the end will result in the reversed scale. Can also be a ggplot2 scale object to overwrite the scale.
 #' In mixed layouts, a list of two scales can be provided.
@@ -40,20 +42,17 @@
 #' @param cell_bg_alpha Alpha for cell colours in modes 'text' and 'none'.
 #' @param show_names_diag Logical indicating if names should be written in the diagonal cells (for symmetric input).
 #' @param names_diag_params List with named parameters (such as size, angle, etc) passed on to geom_text when writing the column names in the diagonal.
-#' @param show_names_x Logical indicating if names should be written on the x axis. Labels can be customised using `ggplot2::theme()` on the output plot.
+#' @param show_names_x,show_names_y Logical indicating if names should be written on the x and y axes. Labels can be customised using `ggplot2::theme()` on the output plot.
 #' @param names_x_side String specifying position of the x axis names ("top" or "bottom").
-#' @param show_names_y Logical indicating if names should be written on the y axis.
 #' @param names_y_side String specifying position of the y axis names ("left" or "right").
-#' @param annot_rows_df Data frame for row annotations. The names of the columns in the data must be included,
+#' @param annot_rows_df,annot_cols_df Data frame for row and column annotations. The names of the columns in the data must be included,
 #' either as row names or in a column named `.names`. Each other column specifies an annotation where the column name
 #' will be used as the annotation name (in the legend and next to the annotation). Numeric columns will use a continuous
 #' colour scale while factor or character columns use discrete scales.
-#' @param annot_cols_df Same usage as `annot_rows_df` but for column annotation.
-#' @param annot_rows_col Named list for row annotation colour scales. The names should specify which annotation each scale applies to.
+#' @param annot_rows_col,annot_cols_col Named list for row and column annotation colour scales. The names should specify which annotation each scale applies to.
 #' Elements can be strings or ggplot2 "Scale" class objects. If a string, it is used as the brewer palette or viridis option.
 #' If a scale object it is used as is, allowing more flexibility. This may change the order that legends are drawn in,
 #' specify order using the `guide` argument in the `ggplot2` scale function.
-#' @param annot_cols_col Named list used for column annotation colour scales, used like `annot_rows_col`.
 #' @param annot_rows_side String specifying which side row annotation should be drawn ('left' or 'right', defaults to 'left').
 #' @param annot_cols_side String specifying which side column annotation should be drawn ('bottom' or 'top', defaults to 'bottom').
 #' @param annot_dist Distance between heatmap and first annotation cell where 1 is the size of one heatmap cell. Used for both row and column annotation.
@@ -65,21 +64,19 @@
 #' @param annot_na_col Colour to use for NA values in annotations. Annotation-specific colour can be set in the ggplot2 scales in
 #' the `annot_*_fill` arguments.
 #' @param annot_na_remove Logical indicating if NAs in the annotations should be removed (producing empty spaces).
-#' @param annot_rows_params Named list with parameters for row annotations to overwrite the defaults set by the `annot_*` arguments, each name corresponding to the `*` part
+#' @param annot_rows_params,annot_cols_params Named list with parameters for row and column annotations to overwrite the defaults set by the `annot_*` arguments, each name corresponding to the `*` part
 #' (see details for more information).
-#' @param annot_cols_params Named list with parameters for column annotations, used like `annot_rows_params`.
 #' @param show_annot_names Logical controlling if names of annotations should be shown in the drawing area.
 #' @param annot_names_size Size of annotation names.
 #' @param annot_rows_names_side String specifying which side the row annotation names should be on. Either "top" or "bottom".
 #' @param annot_cols_names_side String specifying which side the column annotation names should be on. Either "left" or "right".
-#' @param annot_rows_name_params Named list of parameters for row annotation names. Given to `grid::textGrob`, see `?grid::textGrob` for details. `?grid::gpar` is also helpful.
-#' @param annot_cols_name_params Named list of parameters for column annotation names. Given to `grid::textGrob`, see `?grid::textGrob` for details. `?grid::gpar` is also helpful.
-#' @param cluster_rows Logical indicating if rows should be clustered. Can also be a `hclust` or `dendrogram` object.
-#' @param cluster_cols Logical indicating if columns should be clustered. Can also be a `hclust` or `dendrogram` object.
+#' @param annot_rows_names_params,annot_cols_names_params Named list of parameters for row and column annotation names. Given to `ggplot2::geom_text()`.
+#' @param annot_rows_name_params,annot_cols_name_params Deprecated and kept for backward compatibility. Named list of parameters given to `grid::textGrob()` for annotation names.
+#' Does not work well with heatmap splits.
+#' @param cluster_rows,cluster_cols Logical indicating if rows or columns should be clustered. Can also be `hclust` or `dendrogram` objects.
 #' @param cluster_distance String with the distance metric to use for clustering, given to `stats::dist()`.
 #' @param cluster_method String with the clustering method to use, given to `stats::hclust()`.
-#' @param show_dend_rows Logical indicating if a dendrogram should be drawn for the rows.
-#' @param show_dend_cols Logical indicating if a dendrogram should be drawn for the columns.
+#' @param show_dend_rows,show_dend_cols Logical indicating if a dendrogram should be drawn for the rows or columns.
 #' @param dend_rows_side Which side to draw the row dendrogram on ('left' or 'right', defaults to 'left').
 #' @param dend_cols_side Which side to draw the column dendrogram on ('bottom' or 'top', defaults to 'bottom').
 #' @param dend_col Colour to use for dendrogram lines, applied to both row and column dendrograms.
@@ -87,10 +84,12 @@
 #' @param dend_height Number by which to scale dendrogram height, applied to both row and column dendrograms.
 #' @param dend_lwd Linewidth of dendrogram lines, applied to both row and column dendrograms.
 #' @param dend_lty Dendrogram line type, applied to both row and column dendrograms.
-#' @param dend_rows_params Named list for row dendrogram parameters to overwrite common parameter values. See details for more information.
-#' @param dend_cols_params Named list for column dendrogram parameters to overwrite common parameter values. See details for more information.
-#' @param dend_rows_extend Named list or functional sequence for specifying `dendextend` functions to apply to the row dendrogram. See details for usage.
-#' @param dend_cols_extend Named list or functional sequence for specifying `dendextend` functions to apply to the column dendrogram. See details for usage.
+#' @param dend_rows_params,dend_cols_params Named list for row or column dendrogram parameters to overwrite common parameter values. See details for more information.
+#' @param dend_rows_extend,dend_cols_extend Named list or functional sequence for specifying `dendextend` functions to apply to the row or column dendrogram. See details for usage.
+#' @param split_rows,split_cols Vectors for splitting the rows and columns into facets. Can be a numeric vector shorter than the number of rows/columns to split the heatmap after those indices,
+#' or a vector of the same length as the number of rows/columns containing the facet memberships. In the latter case names can be used to match with rows/columns.
+#' Alternatively, if clustering is applied a single numeric value is accepted for the number of clusters to divide the plot into.
+#' @param split_rows_side,split_cols_side Which side the row/column facet strips should be drawn on ('left'/'right', 'top'/'bottom').
 #'
 #' @return The heatmap as a `ggplot` object.
 #' If `return_data` is TRUE the output is a list containing the plot (named 'plot'),
@@ -110,7 +109,9 @@
 #'
 #' It is also possible to provide two scales for filling or colouring the triangles differently.
 #' In this case the `col_scale` must be one character value (scale used for both triangles) or NULL or a list of length two
-# containing the scales to use (character or scale object, or NULL for default). `size_scale` works in the same way (but takes no character values).
+#' containing the scales to use (character or scale object, or NULL for default). `size_scale` works in the same way (but takes no character values).
+#' In addition, the scale-modifying arguments `bins`, `na_col` and `limits` can also be specified per triangle. `limits` must be a list of length two (or one) where each
+#' element is a numeric vector of length two.
 #'
 #' The annotation parameter arguments `annot_rows_params` and `annot_cols_params` should be named lists, where the possible options correspond to
 #' the different `annot_*` arguments. The possible options are "dist" (distance between heatmap and annotation), "gap" (distance between annotations),
@@ -178,7 +179,9 @@
 gghm <- function(x,
                  layout = "full",
                  mode = if (length(layout) == 1) "heatmap" else c("heatmap", "text"),
-                 col_scale = NULL, col_name = "value", limits = NULL, bins = NULL,
+                 scale_data = NULL,
+                 col_scale = NULL, col_name = "value",
+                 limits = NULL, bins = NULL,
                  size_scale = NULL, size_name = "value",
                  legend_order = NULL,
                  include_diag = TRUE, show_names_diag = FALSE, names_diag_params = NULL,
@@ -196,15 +199,18 @@ gghm <- function(x,
                  annot_border_lty = if (length(border_lty) == 1) border_lty else 1,
                  annot_na_col = na_col, annot_na_remove = na_remove,
                  annot_rows_params = NULL, annot_cols_params = NULL,
-                 show_annot_names = TRUE, annot_names_size = 9,
+                 show_annot_names = TRUE, annot_names_size = 3,
                  annot_rows_names_side = "bottom", annot_cols_names_side = "left",
+                 annot_rows_names_params = NULL, annot_cols_names_params = NULL,
                  annot_rows_name_params = NULL, annot_cols_name_params = NULL,
                  cluster_rows = FALSE, cluster_cols = FALSE,
                  cluster_distance = "euclidean", cluster_method = "complete",
                  show_dend_rows = TRUE, show_dend_cols = TRUE, dend_rows_side = "right", dend_cols_side = "bottom",
                  dend_col = "black", dend_dist = 0, dend_height = 0.3, dend_lwd = 0.3, dend_lty = 1,
                  dend_rows_params = NULL, dend_cols_params = NULL,
-                 dend_rows_extend = NULL, dend_cols_extend = NULL) {
+                 dend_rows_extend = NULL, dend_cols_extend = NULL,
+                 split_rows = NULL, split_cols = NULL,
+                 split_rows_side = "right", split_cols_side = "bottom") {
 
   if (!is.matrix(x) & !is.data.frame(x)) cli::cli_abort("{.var x} must be a matrix or data frame.", class = "input_class_error")
 
@@ -226,6 +232,9 @@ gghm <- function(x,
 
   # Check that there are rownames
   if (is.null(rownames(x))) {rownames(x) <- 1:nrow(x)}
+
+  # Scale data if specified
+  x <- scale_mat(x, scale_data)
 
   # Check if matrix becomes asymmetric after clustering to throw a warning
   x_sym <- isSymmetric(as.matrix(x))
@@ -275,6 +284,7 @@ gghm <- function(x,
   # Make dendrograms
   # To allow for providing a hclust or dendrogram object when clustering, make a separate logical clustering variable
   lclust_rows <- FALSE
+  row_clustering <- NULL
   if (!isFALSE(cluster_rows)) {
     row_clustering <- cluster_data(cluster_rows, x, cluster_distance, cluster_method, dend_rows_extend)
 
@@ -284,6 +294,7 @@ gghm <- function(x,
   }
 
   lclust_cols <- FALSE
+  col_clustering <- NULL
   if (!isFALSE(cluster_cols)) {
     col_clustering <- cluster_data(cluster_cols, t(x), cluster_distance, cluster_method, dend_cols_extend)
 
@@ -344,8 +355,10 @@ gghm <- function(x,
     # Mixed layout, generate one per half and mark by layout. The first one gets the diagonal
     x_long <- dplyr::bind_rows(
       dplyr::mutate(layout_hm(x, layout = layout[1], na_remove = na_remove), layout = layout[1]),
-      dplyr::filter(dplyr::mutate(layout_hm(x, layout = layout[2], na_remove = na_remove), layout = layout[2]),
-                    as.character(row) != as.character(col))
+      dplyr::filter(
+        dplyr::mutate(layout_hm(x, layout = layout[2], na_remove = na_remove), layout = layout[2]),
+        as.character(row) != as.character(col)
+        )
     )
     # Convert layout to a factor vector
     x_long[["layout"]] <- factor(x_long[["layout"]], levels = layout)
@@ -357,31 +370,68 @@ gghm <- function(x,
     }
   }
 
+  # If clustering and facetting the same dimension, cannot show dendrogram
+  facet_already_warned <- FALSE
+  if (!isFALSE(cluster_rows) && !is.null(split_rows)) {
+    show_dend_rows <- FALSE
+  }
+  if (!isFALSE(cluster_cols) && !is.null(split_cols)) {
+    show_dend_cols <- FALSE
+  }
+
+  # Introduce facetting
+  split_rows_names <- split_cols_names <- FALSE
+  if (!is.null(split_rows)) {
+    x_long <- prepare_facets(x_long, x, facet_in = split_rows, layout = layout,
+                             context = "row", dendro = row_clustering)
+    # Hide facet names if facet input is shorter than number of rows, unless data is clustered
+    split_rows_names <- ifelse(length(split_rows) < nrow(x) && isFALSE(cluster_rows), FALSE, TRUE)
+  }
+  if (!is.null(split_cols)) {
+    x_long <- prepare_facets(x_long, x, facet_in = split_cols, layout = layout,
+                             context = "col", dendro = col_clustering)
+    split_cols_names <- ifelse(length(split_cols) < ncol(x) && isFALSE(cluster_cols), FALSE, TRUE)
+  }
 
   # Annotation for rows and columns
   # Default annotation parameters
   annot_default <- list(dist = annot_dist, gap = annot_gap, size = annot_size,
                         show_names = show_annot_names, border_col = annot_border_col,
                         border_lwd = annot_border_lwd, border_lty = annot_border_lty)
+  # Deal with deprecated annot name params
+  annot_rows_names_strategy <- check_annot_names_deprecated(new_params = annot_rows_names_params,
+                                                            old_params = annot_rows_name_params,
+                                                            context = "rows")
+  annot_rows_names_params <- switch(annot_rows_names_strategy, "geom" = annot_rows_names_params,
+                                    "grid" = annot_rows_name_params)
+
+  annot_cols_names_strategy <- check_annot_names_deprecated(new_params = annot_cols_names_params,
+                                                            old_params = annot_cols_name_params,
+                                                            context = "cols")
+  annot_cols_names_params <- switch(annot_cols_names_strategy, "geom" = annot_cols_names_params,
+                                    "grid" = annot_cols_name_params)
+
   if (is.data.frame(annot_rows_df)) {
     annot_rows_prep <- prepare_annotation(annot_df = annot_rows_df, annot_defaults = annot_default,
                                           annot_params = annot_rows_params, annot_side = annot_rows_side,
-                                          context = "rows", annot_name_params = annot_rows_name_params,
+                                          context = "rows", annot_name_params = annot_rows_names_params,
                                           annot_names_size = annot_names_size,
-                                          annot_names_side = annot_rows_names_side, data_size = ncol(x))
+                                          annot_names_side = annot_rows_names_side, data_size = ncol(x),
+                                          x_long = x_long, annot_names_strategy = annot_rows_names_strategy)
     annot_rows_df <- annot_rows_prep[[1]]; annot_rows_params <- annot_rows_prep[[2]];
-    annot_rows_pos <- annot_rows_prep[[3]]; annot_rows_name_params <- annot_rows_prep[[4]]
+    annot_rows_pos <- annot_rows_prep[[3]]; annot_rows_names_params <- annot_rows_prep[[4]]
     annot_rows_names_side <- annot_rows_prep[[5]]
   }
 
   if (is.data.frame(annot_cols_df)) {
     annot_cols_prep <- prepare_annotation(annot_df = annot_cols_df, annot_defaults = annot_default,
                                           annot_params = annot_cols_params, annot_side = annot_cols_side,
-                                          context = "cols", annot_name_params = annot_cols_name_params,
+                                          context = "cols", annot_name_params = annot_cols_names_params,
                                           annot_names_size = annot_names_size,
-                                          annot_names_side = annot_cols_names_side, data_size = nrow(x))
+                                          annot_names_side = annot_cols_names_side, data_size = nrow(x),
+                                          x_long = x_long, annot_names_strategy = annot_cols_names_strategy)
     annot_cols_df <- annot_cols_prep[[1]]; annot_cols_params <- annot_cols_prep[[2]];
-    annot_cols_pos <- annot_cols_prep[[3]]; annot_cols_name_params <- annot_cols_prep[[4]]
+    annot_cols_pos <- annot_cols_prep[[3]]; annot_cols_names_params <- annot_cols_prep[[4]]
     annot_cols_names_side <- annot_cols_prep[[5]]
   }
 
@@ -423,10 +473,15 @@ gghm <- function(x,
     scale_order <- make_legend_order(mode = mode,
                                      col_scale = col_scale,
                                      size_scale = size_scale, annot_rows_df = annot_rows_df,
-                                     annot_cols_df = annot_cols_df, legend_order = legend_order)
+                                     annot_cols_df = annot_cols_df,
+                                     bins = bins, limits = limits, na_col = na_col,
+                                     legend_order = legend_order)
 
     # Prepare scales for mixed layouts
     if (length(layout) == 2) {
+      bins <- prepare_mixed_param(bins, "bins")
+      limits <- prepare_mixed_param(limits, "limits")
+      na_col <- prepare_mixed_param(na_col, "na_col")
       col_name <- prepare_mixed_param(col_name, "col_name")
       col_scale <- prepare_mixed_param(col_scale, "col_scale")
       size_name <- prepare_mixed_param(size_name, "size_name")
@@ -435,10 +490,12 @@ gghm <- function(x,
 
     # Generate the necessary scales
     main_scales <- prepare_scales(scale_order = scale_order, context = "gghm",
+                                  layout = layout,
                                   val_type = ifelse(is.character(x_long[["value"]]) | is.factor(x_long[["value"]]), "discrete", "continuous"),
                                   col_scale = col_scale, col_name = col_name,
                                   size_scale = size_scale, size_name = size_name,
                                   na_col = na_col, limits = limits, bins = bins)
+
     # Annotation scales
     annot_scales <- prepare_scales_annot(scale_order = scale_order, na_col = annot_na_col,
                                          annot_rows_df = annot_rows_df, annot_cols_df = annot_cols_df,
@@ -449,6 +506,13 @@ gghm <- function(x,
     size_scale <- extract_scales(main_scales, scale_order, "size", layout)
   } else {
     annot_scales <- list("rows" = annot_rows_col, "cols" = annot_cols_col)
+  }
+
+  # Check that rows and columns in cell label input exist (if matrix/data frame)
+  if (length(layout) == 2 && is.vector(cell_labels)) {
+    cell_labels <- lapply(cell_labels, function(x) check_cell_labels(x, x_long))
+  } else {
+    cell_labels <- check_cell_labels(cell_labels, x_long)
   }
 
   # Build plot
@@ -463,7 +527,9 @@ gghm <- function(x,
                         col_scale = col_scale, size_scale = size_scale,
                         cell_labels = cell_labels, cell_label_col = cell_label_col,
                         cell_label_size = cell_label_size, cell_label_digits = cell_label_digits,
-                        cell_bg_col = cell_bg_col, cell_bg_alpha = cell_bg_alpha)
+                        cell_bg_col = cell_bg_col, cell_bg_alpha = cell_bg_alpha,
+                        split_rows_names = split_rows_names, split_cols_names = split_cols_names,
+                        split_rows_side = split_rows_side, split_cols_side = split_cols_side)
     if (isTRUE(show_names_diag)) {
       plt <- add_diag_names(plt = plt, x_long = x_long, names_diag_params = names_diag_params)
     }
@@ -480,7 +546,9 @@ gghm <- function(x,
                         col_scale = col_scale[[1]], size_scale = size_scale[[1]],
                         cell_labels = cell_labels[[1]], cell_label_col = cell_label_col[[1]],
                         cell_label_size = cell_label_size[[1]], cell_label_digits = cell_label_digits[[1]],
-                        cell_bg_col = cell_bg_col[[1]], cell_bg_alpha = cell_bg_alpha[[1]])
+                        cell_bg_col = cell_bg_col[[1]], cell_bg_alpha = cell_bg_alpha[[1]],
+                        split_rows_names = split_rows_names, split_cols_names = split_cols_names,
+                        split_rows_side = split_rows_side, split_cols_side = split_cols_side)
     # Remaining half
     # Add new scales if multiple are provided
     if (isTRUE(col_scale[[1]][["aesthetics"]] == col_scale[[2]][["aesthetics"]])) {
@@ -510,7 +578,8 @@ gghm <- function(x,
                           annot_border_lty = annot_rows_params$border_lty,
                           show_annot_names = annot_rows_params$show_names,
                           na_remove = annot_na_remove, col_scale = annot_scales[["rows"]],
-                          names_side = annot_rows_names_side, name_params = annot_rows_name_params)
+                          names_side = annot_rows_names_side, name_params = annot_rows_names_params,
+                          names_strategy = annot_rows_names_strategy)
   }
 
   if (is.data.frame(annot_cols_df)) {
@@ -520,7 +589,8 @@ gghm <- function(x,
                           annot_border_lty = annot_cols_params$border_lty,
                           show_annot_names = annot_cols_params$show_names,
                           na_remove = annot_na_remove, col_scale = annot_scales[["cols"]],
-                          names_side = annot_cols_names_side, name_params = annot_cols_name_params)
+                          names_side = annot_cols_names_side, name_params = annot_cols_names_params,
+                          names_strategy = annot_cols_names_strategy)
   }
 
   # Add dendrograms
@@ -562,56 +632,28 @@ gghm <- function(x,
 }
 
 
-#' Check that layout and mode are correct
+#' Scale data rows or columns.
 #'
 #' @keywords internal
 #'
-#' @param layout Plot layout.
-#' @param mode Plot mode.
+#' @param x Matrix to scale.
+#' @param scl String of dimension to scale ("row", "column", "none" (or NULL), or a substring of the beginning).
 #'
-#' @returns Error if incorrect layout or mode, otherwise nothing.
+#' @returns Scaled (or not scaled) matrix.
 #'
-check_layout <- function(layout, mode) {
-  # Check layout and mode
-  supported_layouts <- c("full", "f", "whole", "w",
-                         "bottomleft", "bl", "topleft", "tl",
-                         "topright", "tr", "bottomright", "br")
-  supported_modes <- c("heatmap", "hm", "text", as.character(1:25), "none")
-  mode_cli_vec <- cli::cli_vec(supported_modes, list("vec-trunc" = 6)) # For error messages
-
-  if (!(length(mode) == 1 & length(layout) == 1) & !(length(mode) == 2 & length(layout) == 2)) {
-    cli::cli_abort("{.var layout} and {.var mode} must be the same length (1 or 2).", class = "layout_mode_len_error")
+scale_mat <- function(x, scl = NULL) {
+  if (is.null(x) || grepl(paste0("^", scl), "none")) {
+    return(x)
+  } else if (grepl(paste0("^", scl), "rows")) {
+    x_out <- t(scale(t(x)))
+  } else if (grepl(paste0("^", scl), "columns")) {
+    x_out <- scale(x)
+  } else {
+    cli::cli_abort("{.var scale_data} must be NULL or 'none' (no scaling), 'rows' or 'columns' (or a substring of the beginning).",
+                   class = "scale_data_error")
   }
 
-  if (length(layout) == 1) {
-    if (!layout %in% supported_layouts) {
-      cli::cli_abort(c("{.val {layout}} is not a supported layout.",
-                       "i" = "Supported layouts are {.val {supported_layouts}}"),
-                     class = "nonsup_layout_error")
-    }
-
-    if (!mode %in% supported_modes) {
-      cli::cli_abort(c("{.val {mode}} is not a supported mode for this layout.",
-                       "i" = paste0("When {.var layout} has length 1, {.var mode} must be ", cli::style_bold("one"), " of {.val {mode_cli_vec}}")),
-                     class = "nonsup_mode_error")
-    }
-
-  } else if (length(layout) == 2) {
-    # Only allow for combinations of topleft + bottomright and topright + bottomleft
-    if (!((sum(layout %in% c("topleft", "tl")) == 1 & sum(layout %in% c("bottomright", "br")) == 1) |
-          (sum(layout %in% c("topright", "tr")) == 1 & sum(layout %in% c("bottomleft", "bl")) == 1))) {
-      cli::cli_abort(c("{.val {layout}} is not a supported combination of layouts.",
-                       "i" = "Mixed layouts must consist of combinations of opposite triangles."),
-                     class = "nonsup_layout_error")
-    }
-    # mode must also be length 2
-    if (any(!mode %in% supported_modes)) {
-      cli::cli_abort(c("{.val {mode}} is not a supported combination of modes.",
-                       "i" = paste0("When {.var layout} has length 2, {.var mode} must be ", cli::style_bold("two"), " of {.val {mode_cli_vec}}")),
-                     class = "nonsup_mode_error")
-    }
-
-  }
+  return(x_out)
 }
 
 #' Prepare parameters for mixed layouts.
@@ -635,13 +677,18 @@ prepare_mixed_param <- function(param, param_name) {
       param_out <- list(param[[1]], param[[1]])
     }
 
-  } else if (is.null(param) && (grepl("_scale$", param_name) || grepl("_digits$", param_name))) {
+  } else if (is.null(param) && (grepl("_scale$", param_name) || grepl("_digits$", param_name) ||
+                                param_name %in% c("size_range", "limits", "bins"))) {
     # Return a list of NULLs if NULL
     param_out <- list(NULL, NULL)
 
   } else if (is.list(param) && length(param) == 1) {
     # If a list of length one, repeat its content
     param_out <- list(param[[1]], param[[1]])
+
+  } else if (!is.list(param) && param_name %in% c("size_range", "limits")) {
+    # Scale parameters that can be a vector
+    param_out <- list(param, param)
 
   } else if (length(param) == 1 || (param_name == "cell_labels" && (is.matrix(param) || is.data.frame(param)))) {
     # Recycle if length one, or if cell_labels is a data frame or matrix for cell labels
@@ -668,119 +715,3 @@ prepare_mixed_param <- function(param, param_name) {
   return(param_out)
 }
 
-
-#' Check (supposed) logical values.
-#'
-#' @keywords internal
-#'
-#' @param ... Should be a single named argument, where the name is the variable name displayed in the error message.
-#' The value is the (supposed) logical.
-#' @param call Call to use for the call in the error message (used in rlang::abort).
-#' Default is rlang::caller_env() resulting in the function that called check_logical().
-#'
-#' @returns Error if not logical or longer than 1, otherwise nothing.
-#'
-check_logical <- function(..., list_allowed = FALSE, call = NULL) {
-  arg <- list(...)
-  name <- names(arg)
-  val <- arg[[1]]
-
-  # Get the call to use for the first part of the error
-  if (is.null(call)) {
-    call <- rlang::caller_env()
-  }
-
-  # First part of error message
-  err_msg <- paste0(ifelse(list_allowed, "Each element of ", ""),
-                    "{.var ", name, "} must be a single {.cls logical} value, not ")
-
-  if (isFALSE(list_allowed)) {
-    # Wrong class
-    if (!is.logical(val)) {
-      cli::cli_abort(paste0(
-        err_msg, "{.cls {class(val)}}."
-      ), class = "logical_error", call = call)
-    }
-
-    # Too long
-    if (length(val) > 1) {
-      cli::cli_abort(paste0(
-        err_msg, "{length(val)} values."
-      ), class = "logical_error", call = call)
-    }
-  } else {
-
-    # Per element
-    sapply(val, function(v) {
-      if (!is.logical(v)) {
-        cli::cli_abort(paste0(
-          err_msg, "{.cls {class(v)}}."
-        ), class = "logical_error", call = call)
-      }
-
-      if (length(v) > 1) {
-        cli::cli_abort(paste0(
-          err_msg, "{length(v)} values."
-        ), class = "logical_error", call = call)
-      }
-    })
-  }
-}
-
-#' Check input numeric arguments for class and length.
-#'
-#' @keywords internal
-#'
-#' @inheritParams check_logical
-#' @param allow_null Logical indicating if NULL is allowed as input for the argument.
-#' @param allowed_lengths The allowed lengths of the argument.
-#'
-#' @returns Error if not numeric, NULL when not allowed, or too long/too short.
-#'
-check_numeric <- function(..., allow_null = FALSE, allowed_lengths = 1, call = NULL) {
-  arg <- list(...)
-  name <- names(arg)
-  val <- arg[[1]]
-
-  if (isTRUE(allow_null) && is.null(val)) {
-    return(NULL)
-  }
-
-  if (is.null(call)) {
-    call <- rlang::caller_env()
-  }
-
-  # Error message, taking into consideration if NULL is allowed, multiple allowed
-  # lengths, and min/max allowed lengths
-  err_msg <- paste0("{.var ", name, "} must be ",
-                    ifelse(length(allowed_lengths) > 1,
-                           paste0(min(allowed_lengths), " to ", max(allowed_lengths)),
-                           ifelse(max(allowed_lengths) > 1,
-                                  max(allowed_lengths),
-                                  "a single")),
-                    " {.cls numeric} value", ifelse(max(allowed_lengths) > 1, "s", ""),
-                    ifelse(allow_null, " or NULL", ""),
-                    ", not ")
-
-  # NULL but NULL not allowed
-  if (isFALSE(allow_null) && is.null(val)) {
-    cli::cli_abort(paste0(
-      err_msg, " NULL."
-    ), class = "numeric_error")
-  }
-
-  # Wrong class
-  if (!is.numeric(val)) {
-    cli::cli_abort(paste0(
-      err_msg, " {.cls {class(val)}}."
-    ), class = "numeric_error")
-  }
-
-  # Too long or too short
-  if (!(length(val) <= max(allowed_lengths) &&
-        length(val) >= min(allowed_lengths))) {
-    cli::cli_abort(paste0(
-      err_msg, " {length(val)} value", ifelse(length(val) > 1, "s", ""), "."
-    ), class = "numeric_error")
-  }
-}

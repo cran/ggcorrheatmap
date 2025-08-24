@@ -64,9 +64,11 @@ ggcorrhm(
   annot_rows_params = NULL,
   annot_cols_params = NULL,
   show_annot_names = TRUE,
-  annot_names_size = 9,
+  annot_names_size = 3,
   annot_rows_names_side = "bottom",
   annot_cols_names_side = "left",
+  annot_rows_names_params = NULL,
+  annot_cols_names_params = NULL,
   annot_rows_name_params = NULL,
   annot_cols_name_params = NULL,
   cluster_rows = FALSE,
@@ -85,7 +87,9 @@ ggcorrhm(
   dend_rows_params = NULL,
   dend_cols_params = NULL,
   dend_rows_extend = NULL,
-  dend_cols_extend = NULL
+  dend_cols_extend = NULL,
+  split_rows = NULL,
+  split_cols = NULL
 )
 }
 \arguments{
@@ -149,7 +153,7 @@ NAs hide the corresponding legends, a single NA hides all. Ignored for \code{ggp
 
 \item{p_values}{Logical indicating if p-values should be calculated. Use with \code{p_thresholds} to mark cells, and/or \code{return_data} to get the p-values in the output data.}
 
-\item{p_adjust}{String specifying the adjustment method to use for the p-values (default is "none").}
+\item{p_adjust}{String specifying the multiple testing adjustment method to use for the p-values (default is "none"). Passed to \code{stats::p.adjust()}.}
 
 \item{p_thresholds}{Named numeric vector specifying p-value thresholds (in ascending order) to mark. The last element must be 1 or higher (to set the upper limit).
 Names must be unique, but one element can be left unnamed (by default 1 is unnamed, meaning values between the threshold closest to 1 and 1 are not marked in the plot).
@@ -181,27 +185,21 @@ Not supported for numeric \code{mode}.}
 
 \item{names_diag_params}{List with named parameters (such as size, angle, etc) passed on to geom_text when writing the column names in the diagonal.}
 
-\item{show_names_x}{Logical indicating if names should be written on the x axis. Labels can be customised using \code{ggplot2::theme()} on the output plot.}
+\item{show_names_x, show_names_y}{Logical indicating if names should be written on the x and y axes. Labels can be customised using \code{ggplot2::theme()} on the output plot.}
 
 \item{names_x_side}{String specifying position of the x axis names ("top" or "bottom").}
 
-\item{show_names_y}{Logical indicating if names should be written on the y axis.}
-
 \item{names_y_side}{String specifying position of the y axis names ("left" or "right").}
 
-\item{annot_rows_df}{Data frame for row annotations. The names of the columns in the data must be included,
+\item{annot_rows_df, annot_cols_df}{Data frame for row and column annotations. The names of the columns in the data must be included,
 either as row names or in a column named \code{.names}. Each other column specifies an annotation where the column name
 will be used as the annotation name (in the legend and next to the annotation). Numeric columns will use a continuous
 colour scale while factor or character columns use discrete scales.}
 
-\item{annot_cols_df}{Same usage as \code{annot_rows_df} but for column annotation.}
-
-\item{annot_rows_col}{Named list for row annotation colour scales. The names should specify which annotation each scale applies to.
+\item{annot_rows_col, annot_cols_col}{Named list for row and column annotation colour scales. The names should specify which annotation each scale applies to.
 Elements can be strings or ggplot2 "Scale" class objects. If a string, it is used as the brewer palette or viridis option.
 If a scale object it is used as is, allowing more flexibility. This may change the order that legends are drawn in,
 specify order using the \code{guide} argument in the \code{ggplot2} scale function.}
-
-\item{annot_cols_col}{Named list used for column annotation colour scales, used like \code{annot_rows_col}.}
 
 \item{annot_rows_side}{String specifying which side row annotation should be drawn ('left' or 'right', defaults to 'left').}
 
@@ -224,10 +222,8 @@ the \verb{annot_*_fill} arguments.}
 
 \item{annot_na_remove}{Logical indicating if NAs in the annotations should be removed (producing empty spaces).}
 
-\item{annot_rows_params}{Named list with parameters for row annotations to overwrite the defaults set by the \verb{annot_*} arguments, each name corresponding to the \code{*} part
+\item{annot_rows_params, annot_cols_params}{Named list with parameters for row or column annotations to overwrite the defaults set by the \verb{annot_*} arguments, each name corresponding to the \code{*} part
 (see details of \code{gghm()} for more information).}
-
-\item{annot_cols_params}{Named list with parameters for column annotations, used like \code{annot_rows_params}.}
 
 \item{show_annot_names}{Logical controlling if names of annotations should be shown in the drawing area.}
 
@@ -237,21 +233,18 @@ the \verb{annot_*_fill} arguments.}
 
 \item{annot_cols_names_side}{String specifying which side the column annotation names should be on. Either "left" or "right".}
 
-\item{annot_rows_name_params}{Named list of parameters for row annotation names. Given to \code{grid::textGrob}, see \code{?grid::textGrob} for details. \code{?grid::gpar} is also helpful.}
+\item{annot_rows_names_params, annot_cols_names_params}{Named list of parameters for row and column annotation names. Given to \code{ggplot2::geom_text()}.}
 
-\item{annot_cols_name_params}{Named list of parameters for column annotation names. Given to \code{grid::textGrob}, see \code{?grid::textGrob} for details. \code{?grid::gpar} is also helpful.}
+\item{annot_rows_name_params, annot_cols_name_params}{Deprecated and kept for backward compatibility. Named list of parameters given to \code{grid::textGrob()} for annotation names.
+Does not work well with heatmap splits.}
 
-\item{cluster_rows}{Logical indicating if rows should be clustered. Can also be a \code{hclust} or \code{dendrogram} object.}
-
-\item{cluster_cols}{Logical indicating if columns should be clustered. Can also be a \code{hclust} or \code{dendrogram} object.}
+\item{cluster_rows, cluster_cols}{Logical indicating if rows or columns should be clustered. Can also be \code{hclust} or \code{dendrogram} objects.}
 
 \item{cluster_distance}{String with the distance metric to use for clustering, given to \code{stats::dist()}.}
 
 \item{cluster_method}{String with the clustering method to use, given to \code{stats::hclust()}.}
 
-\item{show_dend_rows}{Logical indicating if a dendrogram should be drawn for the rows.}
-
-\item{show_dend_cols}{Logical indicating if a dendrogram should be drawn for the columns.}
+\item{show_dend_rows, show_dend_cols}{Logical indicating if a dendrogram should be drawn for the rows or columns.}
 
 \item{dend_rows_side}{Which side to draw the row dendrogram on ('left' or 'right', defaults to 'left').}
 
@@ -267,13 +260,13 @@ the \verb{annot_*_fill} arguments.}
 
 \item{dend_lty}{Dendrogram line type, applied to both row and column dendrograms.}
 
-\item{dend_rows_params}{Named list for row dendrogram parameters. See details of \code{gghm()} for more information.}
+\item{dend_rows_params, dend_cols_params}{Named list for row or column dendrogram parameters. See details of \code{gghm()} for more information.}
 
-\item{dend_cols_params}{Named list for column dendrogram parameters. See details of \code{gghm()} for more information.}
+\item{dend_rows_extend, dend_cols_extend}{Named list or functional sequence for specifying \code{dendextend} functions to apply to the row or column dendrogram. See details of \code{gghm()} and \code{ggcorrhm()} for usage.}
 
-\item{dend_rows_extend}{Named list or functional sequence for specifying \code{dendextend} functions to apply to the row dendrogram. See details of \code{gghm()} and \code{ggcorrhm()} for usage.}
-
-\item{dend_cols_extend}{Named list or functional sequence for specifying \code{dendextend} functions to apply to the column dendrogram. See details of \code{gghm()} and \code{ggcorrhm()} for usage.}
+\item{split_rows, split_cols}{Vectors for splitting the rows and columns into facets. Can be a numeric vector shorter than the number of rows/columns to split the heatmap after those indices,
+or a vector of the same length as the number of rows/columns containing the facet memberships. In the latter case names can be used to match with rows/columns.
+Alternatively, if clustering is applied a single numeric value is accepted for the number of clusters to divide the plot into.}
 }
 \value{
 The correlation heatmap as a \code{ggplot} object.
@@ -295,13 +288,16 @@ if two matrices are provided they should have the same number of rows and the ro
 
 Row and column names are displayed in the diagonal by default if the correlation matrix is symmetric (only \code{x} is provided or \code{x} and \code{y} are identical).
 
-The colour scale is set to be a diverging gradient around 0, with options to change the low, mid, and high colours, the midpoint, and the limits.
-The \code{bins} argument converts the scale to a discrete scale divided into \code{bins} equally distributed bins.
+The colour scale is set to be a diverging gradient around 0, with options to change the \code{low}, \code{mid}, and \code{high} colours, the \code{midpoint}, and the \code{limits} (using the arguments
+of the same names). The \code{bins} argument converts the scale to a discrete scale divided into \code{bins} equally distributed bins (if an integer the breaks may be at strange numbers,
+if a double the number of bins may be different but the breaks are at nicer numbers). These arguments can be of length two (\code{limits} a list of length two) two apply
+to each triangle in a mixed layout (detailed more in the details section of \code{gghm()}). The \code{size_range} argument (for size scales) can also be a list of length two like \code{limits}.
 
 The size scale, used when a numeric cell shape is specified, is set to vary the shape size between 4 and 10 (can be changed with the \code{size_range} argument)
 and to transform the values to absolute values (so that both positive and negative correlations are treated equally).
 This behaviour can be overwritten by setting \code{size_scale} to another \verb{ggplot2::scale_size_*} function with the desired
-arguments, or \code{ggplot2::scale_size()} for no special behaviour.
+arguments, or \code{ggplot2::scale_size()} for no special behaviour. \code{ggplot2::scale_size_area()} also scales with the absolute value,
+but only the upper size limit can be set.
 When the absolute value transformation is used the legend for sizes loses its meaning (only displaying positive values)
 and is therefore set to not be shown if \code{legend_order} is NULL.
 

@@ -5,6 +5,8 @@
 
 <!-- badges: start -->
 
+[![CRAN
+status](https://www.r-pkg.org/badges/version/ggcorrheatmap)](https://CRAN.R-project.org/package=ggcorrheatmap)
 [![R-CMD-check](https://github.com/leod123/ggcorrheatmap/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/leod123/ggcorrheatmap/actions/workflows/R-CMD-check.yaml)
 [![codecov](https://codecov.io/gh/leod123/ggcorrheatmap/branch/main/graph/badge.svg)](https://app.codecov.io/gh/leod123/ggcorrheatmap/branch/main)
 <!-- badges: end -->
@@ -84,7 +86,10 @@ articles of the package:
   heatmaps](https://leod123.github.io/ggcorrheatmap/articles/correlation.html)
 - [Annotation](https://leod123.github.io/ggcorrheatmap/articles/annotation.html)
 - [Clustering](https://leod123.github.io/ggcorrheatmap/articles/clustering.html)
+- [Facets](https://leod123.github.io/ggcorrheatmap/articles/facets.html)
 - [Mixed
   layouts](https://leod123.github.io/ggcorrheatmap/articles/mixed.html)
 - [Scales and
   legends](https://leod123.github.io/ggcorrheatmap/articles/legends.html)
+- [Using tidy
+  data](https://leod123.github.io/ggcorrheatmap/articles/tidy_input.html)

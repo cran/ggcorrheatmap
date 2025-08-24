@@ -18,19 +18,28 @@
 #' @param col_scale Named list of fill scales to use, named after the columns in the annotation data frame.
 #' Each element should either be a `scale_fill_*` object or a string specifying a brewer palette or viridis option.
 #' @param names_side String specifying which side the labels should be drawn on. "top" or "bottom" for row annotation, "left" or "right" for column annotation.
-#' @param name_params A named list of parameters to give `grid::textGrob` to modify annotation label appearance.
+#' @param name_params A named list of parameters to give to `ggplot2::geom_text` or `grid::textGrob` to modify annotation label appearance.
+#' @param names_strategy String stating which strategy to use for drawing names (geom, grid).
 #'
 #' @return `ggplot` object with added annotations.
 #'
 add_annotation <- function(plt, context = c("rows", "cols"), annot_df, annot_pos, annot_size,
                            annot_border_lwd = 0.5, annot_border_col = "grey", annot_border_lty = 1,
-                           show_annot_names = TRUE, na_remove = FALSE, col_scale = NULL, names_side, name_params = NULL) {
-  .names <- .data <- NULL
+                           show_annot_names = TRUE, na_remove = FALSE, col_scale = NULL, names_side,
+                           name_params = NULL, names_strategy = "geom") {
+  .names <- .data <- name <- x <- y <- NULL
 
   check_logical(annot_na_remove = na_remove)
   check_logical(show_annot_names = show_annot_names)
 
-  annot_names <- colnames(annot_df)[-which(colnames(annot_df) == ".names")]
+  annot_names <- colnames(annot_df)[-which(colnames(annot_df) %in% c(".names", ".row_facets", ".col_facets"))]
+
+  if (isTRUE(show_annot_names)) {
+    annot_name_df <- prepare_annot_label(annot_df, annot_pos, names_side, context)
+  }
+
+  # Include facet names if there are any
+  facet_names <- c(".row_facets", ".col_facets")[which(c(".row_facets", ".col_facets") %in% colnames(annot_df))]
 
   plt_out <- plt +
     lapply(annot_names, function(nm) {
@@ -39,7 +48,8 @@ add_annotation <- function(plt, context = c("rows", "cols"), annot_df, annot_pos
         ggnewscale::new_scale_fill(),
 
         # Draw annotation
-        ggplot2::geom_tile(data = dplyr::filter(dplyr::select(annot_df, .names, dplyr::all_of(nm)), if (na_remove) !is.na(get(nm)) else TRUE),
+        ggplot2::geom_tile(data = dplyr::filter(dplyr::select(annot_df, .names, dplyr::all_of(nm), dplyr::all_of(facet_names)),
+                                                if (na_remove) !is.na(get(nm)) else TRUE),
                            mapping = ggplot2::aes(x = if (context[1] == "rows") {annot_pos[nm]}
                                                   else {.data[[".names"]]},
                                                   y = if (context[1] == "rows") {.data[[".names"]]}
@@ -51,7 +61,14 @@ add_annotation <- function(plt, context = c("rows", "cols"), annot_df, annot_pos
 
         col_scale[[nm]],
 
-        if (show_annot_names) {
+        if (show_annot_names && names_strategy == "geom") {
+          do.call(ggplot2::geom_text,
+                  append(list(data = subset(annot_name_df, name == nm),
+                              mapping = ggplot2::aes(x = x, y = y, label = name)),
+                         name_params))
+        } else {NULL},
+
+        if (show_annot_names && names_strategy == "grid") {
           # Add labels using annotation_custom to add a text grob without disturbing the plot area limits
           ggplot2::annotation_custom(tryCatch(do.call(grid::textGrob, append(list(nm), name_params)),
                                               error = function(err) {
@@ -59,7 +76,7 @@ add_annotation <- function(plt, context = c("rows", "cols"), annot_df, annot_pos
                                                                  i = err[["message"]]),
                                                                # Make the call a bit more informative
                                                                call = call("add_annotation"),
-                                                               class = "grid_texrgrob_error")
+                                                               class = "grid_textgrob_error")
                                               }),
                                      # Distance between edge of heatmap and labels is 0.2 (default distance of annotation from heatmap)
                                      # (.3 is .2 away from .5 (middle point of cell), .7 is the same distance in the other direction)
@@ -67,7 +84,7 @@ add_annotation <- function(plt, context = c("rows", "cols"), annot_df, annot_pos
                                      xmax = ifelse(context[1] == "rows", annot_pos[nm], ifelse(names_side == "left", .3, nrow(annot_df) + .7)),
                                      ymin = ifelse(context[1] == "rows", ifelse(names_side == "bottom", .3, nrow(annot_df) + .7), annot_pos[nm]),
                                      ymax = ifelse(context[1] == "rows", ifelse(names_side == "bottom", .3, nrow(annot_df) + .7), annot_pos[nm]))
-        }
+        } else {NULL}
       )
     })
 
@@ -88,12 +105,38 @@ add_annotation <- function(plt, context = c("rows", "cols"), annot_df, annot_pos
 #' @param context String stating the context ("rows" or "cols").
 #' @param annot_names_side Annotation label side.
 #' @param data_size Size of data (ncol if row annotations, nrow if column annotations).
+#' @param x_long Long format plotting data, to see if there are any facets to take into account.
+#' @param annot_names_strategy String stating how to draw names (geom, grid). To deal with deprecated argument.
 #'
 #' @returns List with updated annotation parameters, calculated annotation positions, and updated
 #' annotation label parameters.
 #'
 prepare_annotation <- function(annot_df, annot_defaults, annot_params, annot_side, context = c("rows", "cols"),
-                               annot_names_size, annot_name_params, annot_names_side, data_size) {
+                               annot_names_size, annot_name_params, annot_names_side, data_size, x_long,
+                               annot_names_strategy = "geom") {
+  .row_facets <- .col_facets <- NULL
+
+  # Get data size for annotation positions (will depend on facetting)
+  if (context[1] == "rows") {
+    # If there are column facets, the edge of the heatmap will not be at the full data size
+    # but only for the number of columns in the last facet
+    if (".col_facets" %in% colnames(x_long)) {
+      last_facet <- levels(x_long[[".col_facets"]])[length(levels(x_long[[".col_facets"]]))]
+      data_size <- length(unique(subset(x_long, .col_facets == last_facet)[["col"]]))
+
+    } else {
+      # If no facetting, the heatmap edge is simply at ncol of the data
+      data_size <- length(unique(x_long[["col"]]))
+    }
+  } else {
+    # For column annotations, use the first facet instead
+    if (".row_facets" %in% colnames(x_long)) {
+      first_facet <- levels(x_long[[".row_facets"]])[1]
+      data_size <- length(unique(subset(x_long, .row_facets == first_facet)[["row"]]))
+    } else {
+      data_size <- length(unique(x_long[["row"]]))
+    }
+  }
 
   # Check that annotation and label parameters are in lists
   if (!is.list(annot_params) && !is.null(annot_params)) {
@@ -145,7 +188,7 @@ prepare_annotation <- function(annot_df, annot_defaults, annot_params, annot_sid
   annot_pos <- get_annotation_pos(lannot_side, annot_names, annot_params$size,
                                   annot_params$dist, annot_params$gap, data_size)
 
-  # Row annotation label parameters and their defaults (fed to grid::textGrob)
+  # Throw a warning for invalid name side values
   if (!(context[1] == "rows" && annot_names_side %in% c("top", "bottom")) &&
       !(context[1] == "cols" && annot_names_side %in% c("left", "right"))) {
     side_var <- paste0("annot_", context[1], "_names_side")
@@ -155,17 +198,70 @@ prepare_annotation <- function(annot_df, annot_defaults, annot_params, annot_sid
     annot_names_side <- ifelse(context[1] == "rows", "bottom", "left")
   }
 
-  annot_names_defaults <- list(rot = switch(annot_names_side, "bottom" =, "top" = 90,
-                                            "left" =, "right" = 0),
-                               just = switch(annot_names_side, "bottom" = "right", "top" = "left",
-                                             "left" = "right", "right" = "left"))
-  # Also defaults for the gp parameter
-  check_numeric(annot_names_size = annot_names_size, allow_null = FALSE, allowed_lengths = 1)
-  annot_gp_defaults <- grid::gpar(fontsize = annot_names_size)
-  annot_gp_params <- replace_default(annot_gp_defaults, annot_name_params[["gp"]], add_new = TRUE)
-  annot_name_params[["gp"]] <- annot_gp_params
-  # Replace defaults and allow for new parameters to be added
-  annot_name_params <- replace_default(annot_names_defaults, annot_name_params, add_new = TRUE)
+  # Set default label parameters
+  if (annot_names_strategy == "geom") {
+    annot_names_defaults <- list(size = annot_names_size,
+                                 angle = switch(annot_names_side, "bottom" =, "top" = 90,
+                                                "left" =, "right" = 0),
+                                 hjust = switch(annot_names_side, "bottom" =, "left" = 1,
+                                                "top" =, "right" = 0))
+    annot_name_params <- replace_default(annot_names_defaults, annot_name_params, add_new = TRUE)
+
+  } else if (annot_names_strategy == "grid") {
+    annot_names_defaults <- list(rot = switch(annot_names_side, "bottom" =, "top" = 90,
+                                              "left" =, "right" = 0),
+                                 just = switch(annot_names_side, "bottom" = "right", "top" = "left",
+                                               "left" = "right", "right" = "left"))
+    # Also defaults for the gp parameter
+    check_numeric(annot_names_size = annot_names_size, allow_null = FALSE, allowed_lengths = 1)
+    annot_gp_defaults <- grid::gpar(fontsize = annot_names_size)
+    annot_gp_params <- replace_default(annot_gp_defaults, annot_name_params[["gp"]], add_new = TRUE)
+    annot_name_params[["gp"]] <- annot_gp_params
+    # Replace defaults and allow for new parameters to be added
+    annot_name_params <- replace_default(annot_names_defaults, annot_name_params, add_new = TRUE)
+
+  }
+
+
+  # If facet columns exist in data, add them to the annotation too
+  # For row annotation, add row facets by matching rownames
+  # also add the last column facet to only have the annotation in the last facet
+  # (and vice versa for column annotation)
+  if (".row_facets" %in% colnames(x_long)) {
+    if (context[1] == "rows") {
+      annot_df <- dplyr::left_join(
+        annot_df,
+        dplyr::distinct(x_long[, c("row", ".row_facets")]),
+        by = c(".names" = "row")
+      )
+
+    } else {
+      # If rows are facetted and the column annotation should be at the top, the annotations must
+      # be put in the first facet, otherwise it will stretch the last facet
+      if (isFALSE(lannot_side)) {
+        annot_df[[".row_facets"]] <- as.character(levels(x_long[[".row_facets"]])[1])
+      } else {
+        annot_df[[".row_facets"]] <- as.character(levels(x_long[[".row_facets"]])[length(levels(x_long[[".row_facets"]]))])
+      }
+    }
+  }
+
+  if (".col_facets" %in% colnames(x_long)) {
+    if (context[1] == "cols") {
+      annot_df <- dplyr::left_join(
+        annot_df,
+        dplyr::distinct(x_long[, c("col", ".col_facets")]),
+        by = c(".names" = "col")
+      )
+
+    } else {
+      if (isTRUE(lannot_side)) {
+        annot_df[[".col_facets"]] <- as.character(levels(x_long[[".col_facets"]])[1])
+      } else {
+        annot_df[[".col_facets"]] <- as.character(levels(x_long[[".col_facets"]])[length(levels(x_long[[".col_facets"]]))])
+      }
+    }
+  }
 
   return(list(annot_df, annot_params, annot_pos, annot_name_params, annot_names_side))
 }
@@ -202,45 +298,50 @@ get_annotation_pos <- function(annot_side = TRUE, annot_names, annot_size, annot
 }
 
 
-#' Check names of annotation
-#'
-#' @keywords internal
-#'
-#' @param annot_df Annotation data frame (annot_rows_df, annot_cols_df).
-#' @param names_in Names that exist in the data (rownames, colnames).
-#'
-#' @returns Annotation data frame (rownames moved to column named '.names' if necessary).
-#'
-check_annot_df <- function(annot_df, names_in, context) {
-  .names <- NULL
+prepare_annot_label <- function(annot_df, annot_pos, names_side, context = c("rows", "cols")) {
 
-  # Check that it's a data frame
-  if (!is.data.frame(annot_df)) {
-    cli::cli_abort("{.var {context}} must be a {.cls data.frame}, not a {.cls {class(annot_df)}}.")
+  df_out <- if (context[1] == "rows") {
+    df_temp <- data.frame(name = names(annot_pos),
+                          x = annot_pos,
+                          # Put at the end + a bit outside
+                          y = ifelse(names_side == "bottom", .3, nrow(annot_df) + .7))
+    # Add facetting columns
+    # For row facets, put the labels only in the first or last facet depending on the label side
+    # Also modify y positions to take into account that the facet may contain fewer rows than the whole data
+    if (".row_facets" %in% colnames(annot_df)) {
+      df_temp[["y"]] <- ifelse(names_side == "bottom", .3,
+                               sum(annot_df[[".row_facets"]] == levels(annot_df[[".row_facets"]])[1]) + .7)
+      df_temp[[".row_facets"]] <- ifelse(names_side == "bottom",
+                                         as.character(levels(annot_df[[".row_facets"]])[length(levels(annot_df[[".row_facets"]]))]),
+                                         as.character(levels(annot_df[[".row_facets"]])[1]))
+    }
+    # For col facets, use the same as the annotation uses
+    if (".col_facets" %in% colnames(annot_df)) {
+      df_temp[[".col_facets"]] <- unique(annot_df[[".col_facets"]])
+    }
+
+    df_temp
+
+  } else if (context[1] == "cols") {
+    df_temp <- data.frame(name = names(annot_pos),
+                          x = ifelse(names_side == "left", .3, nrow(annot_df) + .7),
+                          y = annot_pos)
+
+    if (".row_facets" %in% colnames(annot_df)) {
+      df_temp[[".row_facets"]] <- unique(annot_df[[".row_facets"]])
+    }
+
+    if (".col_facets" %in% colnames(annot_df)) {
+      df_temp[["x"]] <- ifelse(names_side == "left", .3,
+                               sum(annot_df[[".col_facets"]] == levels(annot_df[[".col_facets"]])[length(levels(annot_df[[".col_facets"]]))]) + .7)
+      df_temp[[".col_facets"]] <- ifelse(names_side == "left",
+                                         as.character(levels(annot_df[[".col_facets"]])[1]),
+                                         as.character(levels(annot_df[[".col_facets"]])[length(levels(annot_df[[".col_facets"]]))]))
+    }
+
+    df_temp
   }
 
-  # Move names to column if in row names
-  if (!".names" %in% colnames(annot_df)) {
-    annot_df[[".names"]] <- rownames(annot_df)
-    rownames(annot_df) <- NULL
-  }
-
-  # Check that annotation contains the correct names
-  # If any names don't exist, throw a warning and remove them
-  if (any(!annot_df[[".names"]] %in% names_in)) {
-    bad_names <- setdiff(annot_df[[".names"]], names_in)
-    cli::cli_warn("{?A/Some} name{?s} in the row annotation do{?es/}n't exist in the data: {.val {bad_names}}.",
-                   class = "annot_names_warn")
-    annot_df <- subset(annot_df, !.names %in% bad_names)
-  }
-
-  # Check that there are no duplicate names
-  # If there are any, throw and error as it becomes unclear which one is the real value
-  if (any(duplicated(annot_df[[".names"]]))) {
-    dupl_names <- unique(annot_df[[".names"]][which(duplicated(annot_df[[".names"]]))])
-    cli::cli_abort("{.val {dupl_names}} appear{?s/} multiple times in {.var {context}}. Names must be unique.",
-                   class = "dupl_annot_name_error")
-  }
-
-  return(annot_df)
+  return(df_out)
 }
+

@@ -9,7 +9,10 @@ test_that("it runs without error", {
   expect_no_error(ggcorrhm(mtcars, iris[1:32, -5], p_values = TRUE))
   expect_no_error(ggcorrhm(iris[1:32, -5], mtcars, p_values = TRUE, p_adjust = "bonferroni"))
   expect_no_error(ggcorrhm(mtcars, layout = c("tl", "br"), mode = c("hm", "18")))
+  # Number of rows in returned data
   expect_equal(nrow(ggcorrhm(mtcars, return_data = TRUE)$plot_data), ncol(mtcars) * ncol(mtcars))
+  expect_equal(nrow(ggcorrhm(mtcars, return_data = TRUE, layout = c("tl", "br"))$plot_data),
+               ncol(mtcars) * ncol(mtcars))
 })
 
 test_that("class errors", {
@@ -31,7 +34,6 @@ test_that("class errors", {
   expect_error(ggcorrhm(mtcars, cell_labels = TRUE, cell_label_p = list(c(TRUE, TRUE), FALSE),
                         layout = c("tr", "bl"), mode = c("hm", "hm")),
                class = "logical_error")
-  expect_error(ggcorrhm(mtcars, p_values = TRUE, p_adjust = "asdf"), class = "p_adjust_error")
 })
 
 test_that("user-supplied scales", {
@@ -84,6 +86,8 @@ test_that("p-value errors work", {
                class = "p_thr_class_error")
   expect_error(ggcorrhm(mtcars, p_values = TRUE, p_thresholds = c("a" = -1, "b" = 0.5, "c" = 1)),
                class = "p_thr_error")
+  expect_error(ggcorrhm(mtcars, p_values = TRUE, p_thresholds = c("a" = 0.01, "b" = 0.05, "c" = NA, "d" = 1)),
+               class = "p_thr_error")
   expect_error(ggcorrhm(mtcars, p_values = TRUE, p_thresholds = c("***" = 0.001, "**" = 0.01, "*" = 0.05, .1)),
                class = "p_thr_error")
   expect_error(ggcorrhm(mtcars, p_values = TRUE, p_thresholds = c(0.001, 0.01, 0.05, 1)),
@@ -92,6 +96,7 @@ test_that("p-value errors work", {
                class = "p_thr_error")
   expect_warning(ggcorrhm(mtcars, p_values = FALSE, cell_labels = TRUE, cell_label_p = TRUE),
                  class = "cell_label_p_warn")
+  expect_error(ggcorrhm(mtcars, p_values = TRUE, p_adjust = "asdf"), class = "p_adjust_error")
 })
 
 test_that("snapshots are ok", {
@@ -134,4 +139,29 @@ test_that("snapshots are ok", {
                                                         ),
                                                         # Both names are ignored
                                                         col_name = c("default", "gradient")))
+  vdiffr::expect_doppelganger("mixed_scale_param1", {
+    a <- cor(mtcars)
+    a[c(2, 12, 14, 24, 26, 36)] <- NA
+    ggcorrhm(a, cor_in = TRUE, layout = c("tr", "bl"), mode = c("hm", "hm"),
+             high = c("pink", "green"),
+             mid = c("white", "yellow"),
+             low = c("lightblue", "red"),
+             limits = list(c(-1, 1), c(-.75, .75)),
+             bins = c(4L, 5L),
+             na_col = c("beige", "magenta"))
+  })
+  vdiffr::expect_doppelganger("mixed_scale_param2", {
+    ggcorrhm(mtcars, layout = c("tr", "bl"), mode = c("21", "18"),
+             high = c("pink", "green"),
+             mid = c("white", "yellow"),
+             low = c("lightblue", "red"),
+             limits = list(c(-1, 1), c(-.75, .75)),
+             bins = c(4L, 5L),
+             na_col = c("beige", "magenta"),
+             size_range = list(c(6), c(7, 14)),
+             legend_order = 1:10)
+  })
+  vdiffr::expect_doppelganger("facets", ggcorrhm(mtcars, split_rows = 5, split_cols = 5))
+  vdiffr::expect_doppelganger("facets_layout1", ggcorrhm(mtcars, split_rows = 5, split_cols = 5, layout = "bl"))
+  vdiffr::expect_doppelganger("facets_layout2", ggcorrhm(mtcars, split_rows = 5, split_cols = 5, layout = c("tl", "br")))
 })
