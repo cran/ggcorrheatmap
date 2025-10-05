@@ -1,6 +1,6 @@
 Package: ggcorrheatmap
 Title: Make Flexible 'ggplot2' Correlation Heatmaps
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: 
     person(given = "Leo", family = "Dahl",
            email = "leokosdah@gmail.com",
@@ -12,7 +12,7 @@ Description: Create correlation heatmaps with 'ggplot2' and customise them
     general heatmaps not displaying correlations.
 License: MIT + file LICENSE
 Encoding: UTF-8
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 URL: https://github.com/leod123/ggcorrheatmap,
         https://leod123.github.io/ggcorrheatmap/
 BugReports: https://github.com/leod123/ggcorrheatmap/issues
@@ -22,8 +22,8 @@ Suggests: testthat (>= 3.0.0), vdiffr
 Config/testthat/edition: 3
 Config/Needs/website: rmarkdown, patchwork, cowplot, tibble, tidyr
 NeedsCompilation: no
-Packaged: 2025-08-24 17:53:39 UTC; leodahl
+Packaged: 2025-10-05 07:31:52 UTC; leodahl
 Author: Leo Dahl [aut, cre, cph]
 Maintainer: Leo Dahl <leokosdah@gmail.com>
 Repository: CRAN
-Date/Publication: 2025-08-24 18:10:02 UTC
+Date/Publication: 2025-10-05 07:50:02 UTC

@@ -32,6 +32,11 @@ test_that("basic functionality works", {
   lbl2[sample(1:length(lbl2), 100, FALSE)] <- "a"
   expect_no_error(gghm(mtcars, cell_labels = lbl1))
   expect_no_error(gghm(mtcars, cell_labels = lbl2))
+  expect_no_error(gghm(cor(mtcars), layout = "br", split_diag = TRUE))
+  expect_no_error(gghm(cor(mtcars), layout = c("br", "tl"), split_diag = TRUE,
+                       col_scale = c("A", "G"), annot_rows_df = data.frame(
+                         .names = colnames(mtcars), a = 1:11, b = 11:1
+                       ), cluster_rows = TRUE, cluster_cols = TRUE))
   # Mixed layout with multiple scales
   expect_no_error(gghm(cor(mtcars), layout = c("tr", "bl"), mode = c("hm", "hm"),
                        col_scale = list(
@@ -124,6 +129,29 @@ test_that("snapshots", {
                                                       ggplot2::scale_fill_gradient(high = "pink", low = "white"),
                                                       "D"
                                                     )))
+  vdiffr::expect_doppelganger("mixed_scale_params", {
+    a <- cor(mtcars)
+    a[c(2, 12, 14, 24, 26, 36)] <- NA
+    gghm(a, layout = c("tl", "br"), mode = c("hm", "hm"),
+         bins = c(4L, 6L), limits = list(c(-1, 1), c(-.5, .5)),
+         col_scale = c("A", "D"), na_col = c("green", "blue"))
+  })
+  # Triangular layouts with asymmetric matrix
+  set.seed(123)
+  sq_df <- matrix(rnorm(100), nrow = 10, dimnames = list(letters[1:10], letters[1:10]))
+  vdiffr::expect_doppelganger("asymm_square", gghm(sq_df, layout = "tl"))
+  vdiffr::expect_doppelganger("asymm_sqare2", gghm(sq_df, layout = c("tl", "br"), mode = c("hm", "hm"), col_scale = c("A", "G")))
+  vdiffr::expect_doppelganger("split_diag1", gghm(cor(mtcars), layout = "br", split_diag = TRUE))
+  vdiffr::expect_doppelganger("split_diag2", gghm(cor(mtcars), layout = c("br", "tl"), mode = c("hm", "hm"),
+                                                  col_scale = c("A", "G"),
+                                                  split_diag = TRUE, cluster_rows = TRUE, cluster_cols = TRUE,
+                                                  annot_rows_df = data.frame(
+                                                    .names = colnames(mtcars), a = 1:11, b = 11:1
+                                                  )))
+  # Skip this test in CI
+  # All scales are specified as ggplot2 scale objects, leaving the legend order completely to ggplot2
+  # to automatically arrange. Seems like the order differs on different platforms, causing failure in CI
+  skip_on_ci()
   vdiffr::expect_doppelganger("mixed_scales2", gghm(cor(mtcars), layout = c("tl", "br"), mode = c("19", "19"),
                                                     col_scale = list(
                                                       ggplot2::scale_colour_gradient(high = "pink", low = "white"),
@@ -134,13 +162,6 @@ test_that("snapshots", {
                                                       ggplot2::scale_size_continuous(range = c(5, 8))
                                                     ),
                                                     cluster_rows = TRUE, cluster_cols = TRUE))
-  vdiffr::expect_doppelganger("mixed_scale_params", {
-    a <- cor(mtcars)
-    a[c(2, 12, 14, 24, 26, 36)] <- NA
-    gghm(a, layout = c("tl", "br"), mode = c("hm", "hm"),
-         bins = c(4L, 6L), limits = list(c(-1, 1), c(-.5, .5)),
-         col_scale = c("A", "D"), na_col = c("green", "blue"))
-  })
 })
 
 test_that("correct input types", {
@@ -321,8 +342,8 @@ test_that("other_logical_arguments", {
                     annot_na_remove = "asdf"), class = "logical_error")
   expect_error(gghm(mtcars, return_data = "ASDF"), class = "logical_error")
   expect_error(gghm(cor(mtcars), show_names_diag = "TRUE"), class = "logical_error")
-  expect_error(gghm(cor(mtcars), show_names_x = "TR"), class = "logical_error")
-  expect_error(gghm(cor(mtcars), show_names_y = "TRU"), class = "logical_error")
+  expect_error(gghm(cor(mtcars), show_names_cols = "TR"), class = "logical_error")
+  expect_error(gghm(cor(mtcars), show_names_rows = "TRU"), class = "logical_error")
   expect_error(gghm(cor(mtcars), include_diag = "TRUE"), class = "logical_error")
   expect_error(gghm(cor(mtcars), annot_rows_df = data.frame(.names = colnames(mtcars), a = 1:11),
                     show_annot_names = "false"), class = "logical_error")

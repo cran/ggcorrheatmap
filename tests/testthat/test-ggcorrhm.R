@@ -9,6 +9,8 @@ test_that("it runs without error", {
   expect_no_error(ggcorrhm(mtcars, iris[1:32, -5], p_values = TRUE))
   expect_no_error(ggcorrhm(iris[1:32, -5], mtcars, p_values = TRUE, p_adjust = "bonferroni"))
   expect_no_error(ggcorrhm(mtcars, layout = c("tl", "br"), mode = c("hm", "18")))
+  expect_no_error(ggcorrhm(mtcars, annot_rows_df = data.frame(.names = colnames(mtcars), a = 1:11, b = 11:1),
+                           layout = c("tl", "br"), mode = c("hm", "hm")))
   # Number of rows in returned data
   expect_equal(nrow(ggcorrhm(mtcars, return_data = TRUE)$plot_data), ncol(mtcars) * ncol(mtcars))
   expect_equal(nrow(ggcorrhm(mtcars, return_data = TRUE, layout = c("tl", "br"))$plot_data),
@@ -103,10 +105,10 @@ test_that("snapshots are ok", {
   vdiffr::expect_doppelganger("basic_ggcorrhm", ggcorrhm(mtcars))
   vdiffr::expect_doppelganger("asymmetric_corrhm", ggcorrhm(iris[1:32, -5], mtcars))
   # Check that diagonal names end up in the correct positions regardless of inclusion of diagonal
-  vdiffr::expect_doppelganger("diag_names1", ggcorrhm(mtcars, layout = "tr", show_names_x = TRUE, show_names_y = TRUE))
-  vdiffr::expect_doppelganger("diag_names2", ggcorrhm(mtcars, layout = "tr", include_diag = FALSE, show_names_x = TRUE, show_names_y = TRUE))
-  vdiffr::expect_doppelganger("diag_names3", ggcorrhm(mtcars, layout = "tr", include_diag = FALSE, show_names_diag = FALSE, show_names_x = TRUE, show_names_y = TRUE))
-  vdiffr::expect_doppelganger("diag_names4", ggcorrhm(mtcars, layout = "tr", include_diag = TRUE, show_names_diag = FALSE, show_names_x = TRUE, show_names_y = TRUE))
+  vdiffr::expect_doppelganger("diag_names1", ggcorrhm(mtcars, layout = "tr", show_names_rows = TRUE, show_names_c = TRUE))
+  vdiffr::expect_doppelganger("diag_names2", ggcorrhm(mtcars, layout = "tr", include_diag = FALSE, show_names_cols = TRUE, show_names_rows = TRUE))
+  vdiffr::expect_doppelganger("diag_names3", ggcorrhm(mtcars, layout = "tr", include_diag = FALSE, show_names_diag = FALSE, show_names_cols = TRUE, show_names_rows = TRUE))
+  vdiffr::expect_doppelganger("diag_names4", ggcorrhm(mtcars, layout = "tr", include_diag = TRUE, show_names_diag = FALSE, show_names_cols = TRUE, show_names_rows = TRUE))
   vdiffr::expect_doppelganger("corr_w_options", ggcorrhm(mtcars, cluster_rows = TRUE, cluster_cols = TRUE,
                                                          annot_rows_df = data.frame(.names = colnames(mtcars), a = 1:ncol(mtcars)),
                                                          annot_cols_df = data.frame(.names = colnames(mtcars), b = 1:ncol(mtcars))))

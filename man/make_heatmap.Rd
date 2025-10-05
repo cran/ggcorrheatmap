@@ -14,10 +14,10 @@ make_heatmap(
   border_col = "grey",
   border_lty = 1,
   show_names_diag = TRUE,
-  show_names_x = FALSE,
-  show_names_y = FALSE,
-  names_x_side = "top",
-  names_y_side = "left",
+  show_names_cols = FALSE,
+  show_names_rows = FALSE,
+  names_cols_side = "top",
+  names_rows_side = "left",
   col_scale = NULL,
   size_scale = NULL,
   cell_labels = FALSE,
@@ -29,7 +29,8 @@ make_heatmap(
   split_rows_names = FALSE,
   split_cols_names = FALSE,
   split_rows_side = "right",
-  split_cols_side = "bottom"
+  split_cols_side = "bottom",
+  split_diag = FALSE
 )
 }
 \arguments{
@@ -51,13 +52,13 @@ make_heatmap(
 
 \item{show_names_diag}{Logical indicating if names should be displayed on the diagonal.}
 
-\item{show_names_x}{Logical indicating if names should be displayed on the x axis.}
+\item{show_names_cols}{Logical indicating if names should be displayed on the x axis.}
 
-\item{show_names_y}{Logical indicating if names should be displayed on the y axis.}
+\item{show_names_rows}{Logical indicating if names should be displayed on the y axis.}
 
-\item{names_x_side}{X axis side.}
+\item{names_cols_side}{X axis side.}
 
-\item{names_y_side}{Y axis side.}
+\item{names_rows_side}{Y axis side.}
 
 \item{col_scale}{Scale for colour/fill aesthetic.}
 
@@ -78,6 +79,8 @@ make_heatmap(
 \item{split_rows_names, split_cols_names}{Logicals indicating if the facet names should be shown (if plot is built from scratch).}
 
 \item{split_rows_side, split_cols_side}{Sides to put the facet strips.}
+
+\item{split_diag}{Logical indicating if the diagonal should be drawn as triangles (to split it between the two halves).}
 }
 \value{
 ggplot object with heatmap component.

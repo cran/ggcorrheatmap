@@ -24,11 +24,11 @@
 #' Names must be unique, but one element can be left unnamed (by default 1 is unnamed, meaning values between the threshold closest to 1 and 1 are not marked in the plot).
 #' If NULL, no thresholding is done and p-value intervals are not marked with symbols.
 #' @param layout String specifying the layout of the output heatmap. Possible layouts include
-#' 'topleft', 'topright', 'bottomleft', 'bottomright', or the 'whole'/'full' heatmap (default and only possible option if the matrix is asymmetric).
+#' 'topleft', 'topright', 'bottomleft', 'bottomright', or the 'whole'/'full' heatmap (default and only possible option if the matrix is not square with identical dimnames).
 #' A combination of the first letters of each word also works (i.e. f, w, tl, tr, bl, br).
 #' If layout is of length two with two opposing triangles, a mixed layout will be used. For mixed layouts,
 #' `mode` needs a vector of length two (applied in the same order as layout). See details of `gghm()` for more information.
-#' @param include_diag Logical indicating if the diagonal cells should be plotted (if the matrix is symmetric).
+#' @param include_diag Logical indicating if the diagonal cells should be plotted (if the matrix is square with the same row- and colnames).
 #' @param na_remove Logical indicating if NA values in the heatmap should be omitted (meaning no cell border is drawn). This does not affect how
 #' NAs are handled in the correlation computations, use the `cor_use` argument for NA handling in correlation.
 #' @param return_data Logical indicating if the data used for plotting (i.e. the correlation values and, if computed, clustering and p-values) should be returned.
@@ -49,10 +49,9 @@
 #'
 #' @return The correlation heatmap as a `ggplot` object.
 #' If `return_data` is TRUE the output is a list containing the plot (named 'plot'),
-#' the correlations ('plot_data', with factor columns 'row' and 'col' and a column 'value' containing the cell values),
+#' the correlations ('plot_data', with factor columns 'row' and 'col' and a column 'value' containing the cell values, and 'layout' which part of the heatmap each cell belongs to),
 #' and the result of the clustering ('row_clustering' and 'col_clustering', if clustered).
 #' If p-values were calculated, two additional columns named 'p_val' and 'p_adj' are included in 'plot_data', containing nominal and adjusted p-values.
-#' If the layout is mixed, an extra factor column named 'layout' is included, showing which triangle each cell belongs to.
 #'
 #' @export
 #'
@@ -64,7 +63,7 @@
 #' if two matrices are provided they should have the same number of rows and the rows should be ordered in a meaningful way
 #' (i.e. same sample/individual/etc in the same row in both).
 #'
-#' Row and column names are displayed in the diagonal by default if the correlation matrix is symmetric (only `x` is provided or `x` and `y` are identical).
+#' Row and column names are displayed in the diagonal by default if the correlation matrix is square with identical dimnames (only `x` is provided or `x` and `y` are identical).
 #'
 #' The colour scale is set to be a diverging gradient around 0, with options to change the `low`, `mid`, and `high` colours, the `midpoint`, and the `limits` (using the arguments
 #' of the same names). The `bins` argument converts the scale to a discrete scale divided into `bins` equally distributed bins (if an integer the breaks may be at strange numbers,
@@ -79,9 +78,9 @@
 #' When the absolute value transformation is used the legend for sizes loses its meaning (only displaying positive values)
 #' and is therefore set to not be shown if `legend_order` is NULL.
 #'
-#' For symmetric correlation matrices, the dendrogram customisation arguments `dend_rows_extend` and `dend_cols_extend` work best with functions that only change the dendrogram
+#' For square correlation matrices, the dendrogram customisation arguments `dend_rows_extend` and `dend_cols_extend` work best with functions that only change the dendrogram
 #' cosmetically such as the colours, linetypes or node shapes. While it is possible to reorder (using e.g. 'rotate', 'ladderize') or prune (using e.g. 'prune'),
-#' anything that changes the structure of the dendrogram may end up looking strange for symmetric matrices if
+#' anything that changes the structure of the dendrogram may end up looking strange for square matrices if
 #' only applied to one dimension (e.g. the diagonal may not be on the diagonal, triangular or mixed layouts may not work).
 #' The same applies if the `cluster_rows` and `cluster_cols` arguments are `hclust` or `dendrogram` objects.
 #'
@@ -112,10 +111,20 @@
 #' # Mixed layout
 #' ggcorrhm(mtcars, layout = c("tl", "br"))
 #'
+#' # Using different plotting modes
+#' ggcorrhm(mtcars, layout = c("bl", "tr"), mode = c("21", "none"),
+#'          cell_labels = c(FALSE, TRUE))
+#'
+#' # Different colour scales and split diagonal
+#' ggcorrhm(mtcars, layout = c("bl", "tr"), mode = c("hm", "hm"),
+#'          col_scale = c("A", "G"), split_diag = TRUE,
+#'          show_names_diag = FALSE, border_col = 1, border_lwd = 0.3)
+#'
 ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything", cor_in = FALSE,
                      high = "sienna2", mid = "white", low = "skyblue2", midpoint = 0, limits = c(-1, 1), bins = NULL,
                      layout = "full", mode = if (length(layout) == 1) "heatmap" else c("heatmap", "text"),
-                     include_diag = TRUE, na_col = "grey50", na_remove = FALSE, return_data = FALSE,
+                     include_diag = TRUE, split_diag = FALSE,
+                     na_col = "grey50", na_remove = FALSE, return_data = FALSE,
                      col_scale = NULL, col_name = NULL,
                      size_range = c(4, 10), size_scale = NULL, size_name = NULL,
                      legend_order = NULL,
@@ -124,7 +133,9 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                      cell_bg_col = "white", cell_bg_alpha = 0,
                      border_col = "grey", border_lwd = 0.1, border_lty = 1,
                      show_names_diag = TRUE, names_diag_params = NULL,
-                     show_names_x = FALSE, names_x_side = "top", show_names_y = FALSE, names_y_side = "left",
+                     show_names_rows = FALSE, names_rows_side = "left",
+                     show_names_cols = FALSE, names_cols_side = "top",
+                     show_names_x = NULL, names_x_side = NULL, show_names_y = NULL, names_y_side = NULL,
                      annot_rows_df = NULL, annot_cols_df = NULL,
                      annot_rows_col = NULL, annot_cols_col = NULL,
                      annot_rows_side = "right", annot_cols_side = "bottom",
@@ -144,7 +155,8 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                      dend_col = "black", dend_dist = 0, dend_height = 0.3, dend_lwd = 0.3, dend_lty = 1,
                      dend_rows_params = NULL, dend_cols_params = NULL,
                      dend_rows_extend = NULL, dend_cols_extend = NULL,
-                     split_rows = NULL, split_cols = NULL) {
+                     split_rows = NULL, split_cols = NULL,
+                     split_rows_side = "right", split_cols_side = "bottom") {
 
   # Perform some input argument checks
   check_logical(return_data = return_data)
@@ -170,7 +182,6 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
       if (any(duplicated(names(p_thresholds)))) cli::cli_abort("Symbols (the names) of {.var p_thresholds} must be unique.", class = "p_thr_error")
     }
   }
-
 
   # Skip correlation (and p-value) computation if cor_in is TRUE
   check_logical(cor_in = cor_in)
@@ -230,6 +241,9 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                         "pearson" = "Pearson r",
                         "spearman" = "Spearman\nrho",
                         "kendall" = "Kendall\ntau")
+  if (isTRUE(cor_in)) {
+    scale_names <- "Correlation"
+  }
   if (is.null(col_name)) {
     col_name <- scale_names
   }
@@ -239,11 +253,13 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
 
   # Don't display names on the diagonal if the plot is non-symmetric as it will cause
   # new ghost columns to be added to draw the names where row == col
-  if (!isSymmetric(as.matrix(cor_mat))) {
+  if (!isSquare(as.matrix(cor_mat))) {
     show_names_diag <- FALSE
     # Also display x and y names by default, but remove if specified as FALSE (when specified as a named argument)
-    show_names_x <- eval(replace_default(list("show_names_x" = TRUE), as.list(sys.call()))$show_names_x)
-    show_names_y <- eval(replace_default(list("show_names_y" = TRUE), as.list(sys.call()))$show_names_y)
+    show_names_cols <- eval(replace_default(list("show_names_cols" = TRUE), as.list(sys.call()))$show_names_cols)
+    show_names_rows <- eval(replace_default(list("show_names_rows" = TRUE), as.list(sys.call()))$show_names_rows)
+    show_names_x <- eval(replace_default(list("show_names_x" = NULL), as.list(sys.call()))$show_names_x)
+    show_names_y <- eval(replace_default(list("show_names_y" = NULL), as.list(sys.call()))$show_names_y)
   }
 
   # Get scales and their orders
@@ -311,16 +327,21 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
   col_scale <- extract_scales(main_scales, scale_order, c("fill", "col"), layout)
   size_scale <- extract_scales(main_scales, scale_order, "size", layout)
 
+  # Leave a mark for gghm to detect that this is from ggcorrhm
+  attr(col_scale, "is_this_from_ggcorrhm?") <- "yes!!"
+
   # Call with all arguments to get the tooltips when calling ggcorrhm
   cor_plt <- gghm(cor_mat,
                   na_remove = na_remove,
-                  mode = mode, layout = layout, include_diag = include_diag, return_data = TRUE,
-                  col_scale = col_scale, col_name = col_name,
+                  mode = mode, layout = layout,
+                  include_diag = include_diag, split_diag = split_diag,
+                  return_data = TRUE, col_scale = col_scale, col_name = col_name,
                   size_scale = size_scale, size_name = size_name,
                   border_col = border_col, border_lwd = border_lwd, border_lty = border_lty,
                   show_names_diag = show_names_diag, names_diag_params = names_diag_params,
-                  show_names_x = show_names_x, names_x_side = names_x_side,
-                  show_names_y = show_names_y, names_y_side = names_y_side,
+                  show_names_rows = show_names_rows, names_rows_side = names_rows_side,
+                  show_names_cols = show_names_cols, names_cols_side = names_cols_side,
+                  show_names_x = show_names_x, show_names_y = show_names_y, names_x_side = names_x_side, names_y_side = names_y_side,
                   cell_labels = cell_labels, cell_label_col = cell_label_col,
                   cell_label_size = cell_label_size, cell_label_digits = cell_label_digits,
                   cell_bg_col = cell_bg_col, cell_bg_alpha = cell_bg_alpha,
@@ -343,7 +364,8 @@ ggcorrhm <- function(x, y = NULL, cor_method = "pearson", cor_use = "everything"
                   dend_col = dend_col, dend_dist = dend_dist, dend_height = dend_height, dend_lwd = dend_lwd, dend_lty = dend_lty,
                   dend_rows_params = dend_rows_params, dend_cols_params = dend_cols_params,
                   dend_rows_extend = dend_rows_extend, dend_cols_extend = dend_cols_extend,
-                  split_rows = split_rows, split_cols = split_cols)
+                  split_rows = split_rows, split_cols = split_cols,
+                  split_rows_side = split_rows_side, split_cols_side = split_cols_side)
 
   if (return_data & any(unlist(p_values))) {
     # Add p-values to output data

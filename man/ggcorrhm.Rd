@@ -19,6 +19,7 @@ ggcorrhm(
   layout = "full",
   mode = if (length(layout) == 1) "heatmap" else c("heatmap", "text"),
   include_diag = TRUE,
+  split_diag = FALSE,
   na_col = "grey50",
   na_remove = FALSE,
   return_data = FALSE,
@@ -43,10 +44,14 @@ ggcorrhm(
   border_lty = 1,
   show_names_diag = TRUE,
   names_diag_params = NULL,
-  show_names_x = FALSE,
-  names_x_side = "top",
-  show_names_y = FALSE,
-  names_y_side = "left",
+  show_names_rows = FALSE,
+  names_rows_side = "left",
+  show_names_cols = FALSE,
+  names_cols_side = "top",
+  show_names_x = NULL,
+  names_x_side = NULL,
+  show_names_y = NULL,
+  names_y_side = NULL,
   annot_rows_df = NULL,
   annot_cols_df = NULL,
   annot_rows_col = NULL,
@@ -89,7 +94,9 @@ ggcorrhm(
   dend_rows_extend = NULL,
   dend_cols_extend = NULL,
   split_rows = NULL,
-  split_cols = NULL
+  split_cols = NULL,
+  split_rows_side = "right",
+  split_cols_side = "bottom"
 )
 }
 \arguments{
@@ -117,7 +124,7 @@ ggcorrhm(
 in the specified number of bins. If an integer the number of bins will be prioritised.}
 
 \item{layout}{String specifying the layout of the output heatmap. Possible layouts include
-'topleft', 'topright', 'bottomleft', 'bottomright', or the 'whole'/'full' heatmap (default and only possible option if the matrix is asymmetric).
+'topleft', 'topright', 'bottomleft', 'bottomright', or the 'whole'/'full' heatmap (default and only possible option if the matrix is not square with identical dimnames).
 A combination of the first letters of each word also works (i.e. f, w, tl, tr, bl, br).
 If layout is of length two with two opposing triangles, a mixed layout will be used. For mixed layouts,
 \code{mode} needs a vector of length two (applied in the same order as layout). See details of \code{gghm()} for more information.}
@@ -125,7 +132,9 @@ If layout is of length two with two opposing triangles, a mixed layout will be u
 \item{mode}{A string specifying plotting mode. Possible values are \code{heatmap}/\code{hm} for a normal heatmap, a number from 1 to 25 to draw the corresponding shape,
 \code{text} to write the cell values instead of filling cells (colour scaling with value), and \code{none} for blank cells.}
 
-\item{include_diag}{Logical indicating if the diagonal cells should be plotted (if the matrix is symmetric).}
+\item{include_diag}{Logical indicating if the diagonal cells should be plotted (if the matrix is square with the same row- and colnames).}
+
+\item{split_diag}{Logical indicating if the diagonal cells should be drawn as triangles, splitting the diagonal in two.}
 
 \item{na_col}{Colour to use for cells with NA (both main heatmap and annotation).}
 
@@ -181,15 +190,21 @@ containing values to write in the cells. If mode is \code{text}, the cell label 
 \item{border_lty}{Line type of cell borders. Either a number or its corresponding name, or a string of length 2, 4, 6, or 8. See 'lty' of \code{graphics::par()} for details.
 Not supported for numeric \code{mode}.}
 
-\item{show_names_diag}{Logical indicating if names should be written in the diagonal cells (for symmetric input).}
+\item{show_names_diag}{Logical indicating if names should be written in the diagonal cells.}
 
 \item{names_diag_params}{List with named parameters (such as size, angle, etc) passed on to geom_text when writing the column names in the diagonal.}
 
-\item{show_names_x, show_names_y}{Logical indicating if names should be written on the x and y axes. Labels can be customised using \code{ggplot2::theme()} on the output plot.}
+\item{show_names_rows, show_names_cols}{Logical indicating if row/colnames should be written on the axes. Labels can be customised using \code{ggplot2::theme()} on the output plot.}
 
-\item{names_x_side}{String specifying position of the x axis names ("top" or "bottom").}
+\item{names_rows_side}{String specifying position of the row names ("left" or "right").}
 
-\item{names_y_side}{String specifying position of the y axis names ("left" or "right").}
+\item{names_cols_side}{String specifying position of the column names ("top" or "bottom").}
+
+\item{show_names_x, show_names_y}{Deprecated in favour of \code{show_names_rows} and \code{show_names_cols}. Logical indicating if row/colnames should be shown.}
+
+\item{names_x_side}{Deprecated in favour of \code{names_cols_side}. String specifying position of the x axis names ("top" or "bottom").}
+
+\item{names_y_side}{Deprecated in favour of \code{names_rows_side}. String specifying position of the y axis names ("left" or "right").}
 
 \item{annot_rows_df, annot_cols_df}{Data frame for row and column annotations. The names of the columns in the data must be included,
 either as row names or in a column named \code{.names}. Each other column specifies an annotation where the column name
@@ -267,14 +282,15 @@ Does not work well with heatmap splits.}
 \item{split_rows, split_cols}{Vectors for splitting the rows and columns into facets. Can be a numeric vector shorter than the number of rows/columns to split the heatmap after those indices,
 or a vector of the same length as the number of rows/columns containing the facet memberships. In the latter case names can be used to match with rows/columns.
 Alternatively, if clustering is applied a single numeric value is accepted for the number of clusters to divide the plot into.}
+
+\item{split_rows_side, split_cols_side}{Which side the row/column facet strips should be drawn on ('left'/'right', 'top'/'bottom').}
 }
 \value{
 The correlation heatmap as a \code{ggplot} object.
 If \code{return_data} is TRUE the output is a list containing the plot (named 'plot'),
-the correlations ('plot_data', with factor columns 'row' and 'col' and a column 'value' containing the cell values),
+the correlations ('plot_data', with factor columns 'row' and 'col' and a column 'value' containing the cell values, and 'layout' which part of the heatmap each cell belongs to),
 and the result of the clustering ('row_clustering' and 'col_clustering', if clustered).
 If p-values were calculated, two additional columns named 'p_val' and 'p_adj' are included in 'plot_data', containing nominal and adjusted p-values.
-If the layout is mixed, an extra factor column named 'layout' is included, showing which triangle each cell belongs to.
 }
 \description{
 Make a correlation heatmap from input matrices. Uses a diverging colour scale centered around 0.
@@ -286,7 +302,7 @@ matrices or data frames with columns to correlate between the matrices. No rowna
 if two matrices are provided they should have the same number of rows and the rows should be ordered in a meaningful way
 (i.e. same sample/individual/etc in the same row in both).
 
-Row and column names are displayed in the diagonal by default if the correlation matrix is symmetric (only \code{x} is provided or \code{x} and \code{y} are identical).
+Row and column names are displayed in the diagonal by default if the correlation matrix is square with identical dimnames (only \code{x} is provided or \code{x} and \code{y} are identical).
 
 The colour scale is set to be a diverging gradient around 0, with options to change the \code{low}, \code{mid}, and \code{high} colours, the \code{midpoint}, and the \code{limits} (using the arguments
 of the same names). The \code{bins} argument converts the scale to a discrete scale divided into \code{bins} equally distributed bins (if an integer the breaks may be at strange numbers,
@@ -301,9 +317,9 @@ but only the upper size limit can be set.
 When the absolute value transformation is used the legend for sizes loses its meaning (only displaying positive values)
 and is therefore set to not be shown if \code{legend_order} is NULL.
 
-For symmetric correlation matrices, the dendrogram customisation arguments \code{dend_rows_extend} and \code{dend_cols_extend} work best with functions that only change the dendrogram
+For square correlation matrices, the dendrogram customisation arguments \code{dend_rows_extend} and \code{dend_cols_extend} work best with functions that only change the dendrogram
 cosmetically such as the colours, linetypes or node shapes. While it is possible to reorder (using e.g. 'rotate', 'ladderize') or prune (using e.g. 'prune'),
-anything that changes the structure of the dendrogram may end up looking strange for symmetric matrices if
+anything that changes the structure of the dendrogram may end up looking strange for square matrices if
 only applied to one dimension (e.g. the diagonal may not be on the diagonal, triangular or mixed layouts may not work).
 The same applies if the \code{cluster_rows} and \code{cluster_cols} arguments are \code{hclust} or \code{dendrogram} objects.
 }
@@ -333,5 +349,14 @@ ggcorrhm(mtcars, layout = "full", cluster_rows = TRUE, cluster_cols = TRUE,
 
 # Mixed layout
 ggcorrhm(mtcars, layout = c("tl", "br"))
+
+# Using different plotting modes
+ggcorrhm(mtcars, layout = c("bl", "tr"), mode = c("21", "none"),
+         cell_labels = c(FALSE, TRUE))
+
+# Different colour scales and split diagonal
+ggcorrhm(mtcars, layout = c("bl", "tr"), mode = c("hm", "hm"),
+         col_scale = c("A", "G"), split_diag = TRUE,
+         show_names_diag = FALSE, border_col = 1, border_lwd = 0.3)
 
 }

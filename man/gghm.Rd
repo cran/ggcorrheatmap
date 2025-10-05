@@ -17,12 +17,17 @@ gghm(
   size_name = "value",
   legend_order = NULL,
   include_diag = TRUE,
+  split_diag = FALSE,
   show_names_diag = FALSE,
   names_diag_params = NULL,
-  show_names_x = TRUE,
-  names_x_side = "top",
-  show_names_y = TRUE,
-  names_y_side = "left",
+  show_names_rows = TRUE,
+  names_rows_side = "left",
+  show_names_cols = TRUE,
+  names_cols_side = "top",
+  show_names_x = NULL,
+  names_x_side = NULL,
+  show_names_y = NULL,
+  names_y_side = NULL,
   na_col = "grey50",
   na_remove = FALSE,
   return_data = FALSE,
@@ -87,7 +92,7 @@ gghm(
 If a column named \code{.names} (containing unique row identifiers) is present it will be used as rownames.}
 
 \item{layout}{String specifying the layout of the output heatmap. Possible layouts include
-'topleft', 'topright', 'bottomleft', 'bottomright', or the 'whole'/'full' heatmap (default and only possible option if the matrix is asymmetric).
+'topleft', 'topright', 'bottomleft', 'bottomright', or the 'whole'/'full' heatmap (default and only possible option if the matrix is not square).
 A combination of the first letters of each word also works (i.e. f, w, tl, tr, bl, br).
 If layout is of length two with two opposing triangles, a mixed layout will be used. For mixed layouts,
 \code{mode} needs a vector of length two (applied in the same order as layout). See details for more information.}
@@ -117,18 +122,26 @@ of length two containing the two scales to use.}
 \item{legend_order}{Integer vector specifying the order of legends (first value is for the first legend, second for the second, etc). The default (NULL) shows all legends.
 NAs hide the corresponding legends, a single NA hides all. Ignored for \code{ggplot2} scale objects in \code{col_scale} and \code{size_scale}.}
 
-\item{include_diag}{Logical indicating if the diagonal cells (of a symmetric matrix) should be plotted.
+\item{include_diag}{Logical indicating if the diagonal cells (of a square matrix with identical dimnames) should be plotted.
 Mostly only useful for getting a cleaner look with symmetric correlation matrices with triangular layouts, where the diagonal is known to be 1.}
 
-\item{show_names_diag}{Logical indicating if names should be written in the diagonal cells (for symmetric input).}
+\item{split_diag}{Logical indicating if the diagonal cells should be drawn as triangles, splitting the diagonal in two.}
+
+\item{show_names_diag}{Logical indicating if names should be written in the diagonal cells.}
 
 \item{names_diag_params}{List with named parameters (such as size, angle, etc) passed on to geom_text when writing the column names in the diagonal.}
 
-\item{show_names_x, show_names_y}{Logical indicating if names should be written on the x and y axes. Labels can be customised using \code{ggplot2::theme()} on the output plot.}
+\item{show_names_rows, show_names_cols}{Logical indicating if row/colnames should be written on the axes. Labels can be customised using \code{ggplot2::theme()} on the output plot.}
 
-\item{names_x_side}{String specifying position of the x axis names ("top" or "bottom").}
+\item{names_rows_side}{String specifying position of the row names ("left" or "right").}
 
-\item{names_y_side}{String specifying position of the y axis names ("left" or "right").}
+\item{names_cols_side}{String specifying position of the column names ("top" or "bottom").}
+
+\item{show_names_x, show_names_y}{Deprecated in favour of \code{show_names_rows} and \code{show_names_cols}. Logical indicating if row/colnames should be shown.}
+
+\item{names_x_side}{Deprecated in favour of \code{names_cols_side}. String specifying position of the x axis names ("top" or "bottom").}
+
+\item{names_y_side}{Deprecated in favour of \code{names_rows_side}. String specifying position of the y axis names ("left" or "right").}
 
 \item{na_col}{Colour to use for cells with NA (both main heatmap and annotation).}
 
@@ -239,12 +252,12 @@ Alternatively, if clustering is applied a single numeric value is accepted for t
 \value{
 The heatmap as a \code{ggplot} object.
 If \code{return_data} is TRUE the output is a list containing the plot (named 'plot'),
-the plotting data ('plot_data', with factor columns 'row' and 'col' and a column 'value' containing the cell values),
+the plotting data ('plot_data', with factor columns 'row' and 'col', a column 'value' containing the cell values, and 'layout' which part of the heatmap each cell belongs to),
 and the result of the clustering ('row_clustering' and/or 'col_clustering).
-If the layout is mixed, an extra factor column named 'layout' is included in 'plot_data', showing which triangle each cell belongs to.
 }
 \description{
-Make a heatmap with ggplot2.
+Make a heatmap of a matrix/data frame using ggplot2. Square matrices where the row- and column names are the same
+can use triangular layouts that either only show one triangle or plot different things in the different triangles.
 }
 \details{
 When using mixed layouts (\code{layout} is length two), \code{mode} needs to be length two as well, specifying the mode to use in each triangle.
@@ -301,6 +314,9 @@ gghm(scale(hm_in), cluster_rows = TRUE, cluster_cols = TRUE,
      dend_lwd = 0.7, dend_col = "magenta",
      # Specific options
      dend_rows_params = list(height = 1), dend_cols_params = list(lty = 2))
+
+# With gaps
+gghm(mtcars, split_rows = c(10, 20), split_cols = 6)
 
 # With annotation and specifying colour scales
 set.seed(123)

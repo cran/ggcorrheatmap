@@ -507,15 +507,15 @@ default_col_scale <- function(val_type, aes_type, leg_order = 1, title = ggplot2
     val_type,
     "continuous" = switch(
       aes_type,
-      "fill" = ggplot2::scale_fill_continuous,
-      "col" = ggplot2::scale_colour_continuous,
+      "fill" = ggplot2::scale_fill_gradient,
+      "col" = ggplot2::scale_colour_gradient,
       "fill_bins" = ggplot2::scale_fill_binned,
       "col_bins" = ggplot2::scale_colour_binned
     ),
     "discrete" = switch(
       aes_type,
-      "fill" = ggplot2::scale_fill_discrete,
-      "col" = ggplot2::scale_colour_discrete
+      "fill" = ggplot2::scale_fill_hue,
+      "col" = ggplot2::scale_colour_hue
     )
   )
 
@@ -623,6 +623,10 @@ prepare_scales_annot <- function(scale_order, annot_rows_df = NULL, annot_cols_d
     cli::cli_abort("{.var annot_na_col} must be a colour, not NULL.",
                    class = "annot_na_col_length_error")
   }
+
+  # If mixed layout na_col becomes a list causing an error
+  # Use the first value (even if na_col is user-supplied, for finer control must supply scale object)
+  na_col <- na_col[[1]]
 
   # Go through row and then column annotations and assign a scale if not provided
   disc_num <- 1
